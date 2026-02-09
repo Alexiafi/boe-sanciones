@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+boe/
+venv/
+
+# Environment variables
+.env
+
+# Databases
+*.db
+
+# Exports
+exports/
+
+# Streamlit
+.streamlit/
+
+# macOS
+.DS_Store
+
