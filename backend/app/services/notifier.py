@@ -1,0 +1,110 @@
+"""Notification service: in-app + email."""
+
+from __future__ import annotations
+
+import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.models.notificacion import Notificacion
+from app.models.sancionado import Sancionado
+
+logger = logging.getLogger(__name__)
+
+
+def create_inapp_notification(
+    db: Session,
+    sancionado: Sancionado,
+    tipo: str = "nueva_sancion",
+) -> Notificacion:
+    titulo = f"Nueva sanción: {sancionado.nombre or 'Desconocido'}"
+    partes = []
+    if sancionado.organismo_emisor:
+        partes.append(f"Organismo: {sancionado.organismo_emisor}")
+    if sancionado.tipo_infraccion:
+        partes.append(f"Tipo: {sancionado.tipo_infraccion}")
+    if sancionado.importe_multa_eur:
+        partes.append(f"Multa: {sancionado.importe_multa_eur:,.2f} EUR")
+    if sancionado.expediente:
+        partes.append(f"Expediente: {sancionado.expediente}")
+
+    mensaje = " | ".join(partes) if partes else "Se ha detectado una nueva sanción en el BOE."
+
+    notif = Notificacion(
+        tipo=tipo,
+        titulo=titulo,
+        mensaje=mensaje,
+        leida=False,
+        sancionado_id=sancionado.id,
+    )
+    db.add(notif)
+    db.flush()
+    return notif
+
+
+def send_email_digest(sancionados: list[Sancionado], fecha: str) -> bool:
+    """Send an email digest with new sanctions found for a given date."""
+    if not settings.smtp_user or not settings.notification_email_to:
+        logger.info("Email not configured, skipping digest")
+        return False
+
+    if not sancionados:
+        logger.info("No sanctions to report, skipping email")
+        return False
+
+    subject = f"BOE Sanciones - {len(sancionados)} nuevas sanciones ({fecha})"
+
+    rows = []
+    for s in sancionados:
+        rows.append(
+            f"<tr>"
+            f"<td>{s.nombre or '-'}</td>"
+            f"<td>{s.identificador or '-'}</td>"
+            f"<td>{s.organismo_emisor or '-'}</td>"
+            f"<td>{s.tipo_infraccion or '-'}</td>"
+            f"<td>{s.importe_multa_eur or '-'}</td>"
+            f"<td>{s.expediente or '-'}</td>"
+            f"</tr>"
+        )
+
+    html_body = f"""\
+    <html>
+    <body>
+    <h2>Nuevas sanciones detectadas en el BOE - {fecha}</h2>
+    <p>Se han encontrado <strong>{len(sancionados)}</strong> sancionados nuevos.</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+        <th>Nombre</th><th>Identificador</th><th>Organismo</th>
+        <th>Tipo</th><th>Multa (EUR)</th><th>Expediente</th>
+    </tr>
+    {"".join(rows)}
+    </table>
+    <p style="color:#888;margin-top:20px;">
+        Este es un email automático del sistema BOE Sanciones.
+    </p>
+    </body>
+    </html>
+    """
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = settings.smtp_from or settings.smtp_user
+        msg["To"] = settings.notification_email_to
+        msg.attach(MIMEText(html_body, "html"))
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(msg)
+
+        logger.info("Email digest sent to %s", settings.notification_email_to)
+        return True
+
+    except Exception:
+        logger.exception("Failed to send email digest")
+        return False
