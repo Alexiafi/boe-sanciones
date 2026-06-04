@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BOE Oportunidades - Panel de Multas</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "on-surface": "#181c1e",
+              "tertiary-fixed-dim": "#f2bc82",
+              "on-primary-fixed-variant": "#2d476f",
+              "inverse-on-surface": "#eef1f3",
+              "surface-container-highest": "#e0e3e5",
+              "primary-fixed-dim": "#adc7f7",
+              "secondary": "#555f70",
+              "surface-container-lowest": "#ffffff",
+              "on-primary": "#ffffff",
+              "surface-tint": "#455f88",
+              "error": "#ba1a1a",
+              "surface-dim": "#d7dadc",
+              "tertiary": "#321b00",
+              "inverse-surface": "#2d3133",
+              "surface-container-low": "#f1f4f6",
+              "primary": "#002045",
+              "secondary-fixed": "#d9e3f8",
+              "on-tertiary-fixed": "#2b1700",
+              "outline": "#74777f",
+              "on-secondary-fixed-variant": "#3e4758",
+              "on-surface-variant": "#43474e",
+              "on-tertiary-fixed-variant": "#633f0f",
+              "background": "#f7fafc",
+              "outline-variant": "#c4c6cf",
+              "on-secondary": "#ffffff",
+              "tertiary-container": "#4f2e00",
+              "on-secondary-fixed": "#121c2b",
+              "surface-bright": "#f7fafc",
+              "surface": "#f7fafc",
+              "surface-container": "#ebeef0",
+              "on-background": "#181c1e",
+              "primary-container": "#1a365d",
+              "secondary-fixed-dim": "#bdc7db",
+              "tertiary-fixed": "#ffddba",
+              "inverse-primary": "#adc7f7",
+              "secondary-container": "#d9e3f8",
+              "on-primary-container": "#86a0cd",
+              "surface-container-high": "#e5e9eb",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5b6577",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-primary-fixed": "#001b3c",
+              "on-tertiary-container": "#c6955e",
+              "surface-variant": "#e0e3e5",
+              "primary-fixed": "#d6e3ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased">
+<!-- TopNavBar Implementation -->
+<header class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm dark:shadow-none fixed top-0 z-50 w-full font-['Inter'] antialiased tracking-tight">
+<div class="flex justify-between items-center px-8 h-16 w-full max-w-screen-2xl mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-tighter text-blue-900 dark:text-blue-100">BOE Oportunidades</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Inicio</a>
+<a class="text-blue-900 dark:text-blue-400 border-b-2 border-blue-900 dark:border-blue-400 pb-1 font-semibold duration-200 ease-in-out" href="#">Panel de Multas</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Historial</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Clientes</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 material-symbols-outlined text-lg">search</span>
+<input class="bg-slate-100 dark:bg-slate-800 border-none rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-900/20 w-64 transition-all" placeholder="Buscar..." type="text"/>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg text-slate-600 dark:text-slate-400 transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg text-slate-600 dark:text-slate-400 transition-all">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar Implementation (Hidden on Mobile) -->
+<aside class="hidden lg:flex flex-col p-4 space-y-2 h-screen w-64 fixed left-0 top-0 border-r bg-slate-50 dark:bg-slate-900 font-['Inter'] text-sm font-medium z-40 pt-20">
+<div class="px-4 mb-6">
+<h2 class="font-black text-blue-900 dark:text-blue-100 tracking-widest text-lg">BOE</h2>
+<p class="text-slate-500 text-xs">Gestión Editorial</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">dashboard</span> Inicio
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-blue-900 dark:text-blue-400 shadow-sm rounded-xl transition-all duration-300" href="#">
+<span class="material-symbols-outlined">gavel</span> Panel de Multas
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">history</span> Historial
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">group</span> Clientes
+            </a>
+</nav>
+<button class="mt-4 mx-2 bg-gradient-to-br from-primary to-primary-container text-white py-3.5 px-6 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-lg hover:translate-y-[-1px] transition-all">
+<span class="material-symbols-outlined text-sm">add</span> Nueva Multa
+        </button>
+<div class="pt-4 mt-auto border-t border-slate-200 dark:border-slate-800 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-blue-900 transition-all" href="#">
+<span class="material-symbols-outlined">settings</span> Ajustes
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-error transition-all" href="#">
+<span class="material-symbols-outlined">logout</span> Cerrar Sesión
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-16 min-h-screen bg-surface">
+<div class="max-w-7xl mx-auto px-8 py-10 space-y-8">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-on-surface headline-sm -ml-0.5">Multas del Día</h1>
+<p class="text-on-surface-variant body-lg mt-1">Supervisión administrativa de infracciones publicadas hoy.</p>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-low p-1.5 rounded-full">
+<button class="px-4 py-2 bg-surface-container-lowest shadow-sm rounded-full text-sm font-medium text-primary">Hoy</button>
+<button class="px-4 py-2 hover:bg-surface-container-high rounded-full text-sm font-medium text-on-surface-variant transition-colors">Semana</button>
+<button class="px-4 py-2 hover:bg-surface-container-high rounded-full text-sm font-medium text-on-surface-variant transition-colors">Mes</button>
+</div>
+</div>
+<!-- Dashboard Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-lg material-symbols-outlined">new_releases</span>
+<span class="text-xs font-bold text-tertiary tracking-widest uppercase">Nuevas</span>
+</div>
+<div class="text-4xl font-black text-on-surface">124</div>
+<p class="text-sm text-on-surface-variant mt-2">Infracciones pendientes de revisión</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-secondary-fixed text-on-secondary-fixed-variant rounded-lg material-symbols-outlined">rule</span>
+<span class="text-xs font-bold text-secondary tracking-widest uppercase">Revisadas</span>
+</div>
+<div class="text-4xl font-black text-on-surface">42</div>
+<p class="text-sm text-on-surface-variant mt-2">Procesadas en las últimas 24h</p>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<span class="p-2 bg-primary-fixed text-on-primary-fixed-variant rounded-lg material-symbols-outlined">verified</span>
+<span class="text-xs font-bold text-primary tracking-widest uppercase">Conversión</span>
+</div>
+<div class="text-4xl font-black text-on-surface">18%</div>
+<p class="text-sm text-on-surface-variant mt-2">Tasa de conversión a clientes</p>
+</div>
+</div>
+<!-- Filters Section -->
+<div class="bg-surface-container-low p-6 rounded-xl flex flex-wrap gap-4 items-end">
+<div class="flex-1 min-w-[240px]">
+<label class="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-widest">Búsqueda Global</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline">search</span>
+<input class="w-full bg-surface-container-high border-none rounded-lg py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Nombre, CIF o NIF..." type="text"/>
+</div>
+</div>
+<div class="w-48">
+<label class="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-widest">Fecha Publicación</label>
+<input class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 focus:ring-2 focus:ring-primary/20 transition-all text-sm" type="date"/>
+</div>
+<div class="w-48">
+<label class="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-widest">Estado</label>
+<select class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 focus:ring-2 focus:ring-primary/20 transition-all text-sm">
+<option>Todos los estados</option>
+<option>Nuevo</option>
+<option>Revisado</option>
+<option>Cliente</option>
+</select>
+</div>
+<button class="bg-surface-container-highest text-primary px-6 py-3 rounded-lg font-semibold flex items-center gap-2 hover:bg-outline-variant transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span> Aplicar
+                </button>
+</div>
+<!-- Main Data Table Container -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">Nombre / Razón Social</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">CIF/NIF</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">Tipo de Multa</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">Fecha</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">Estado</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest">Teléfono</th>
+<th class="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-widest text-right">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Construcciones Levante S.A.</div>
+<div class="text-xs text-on-surface-variant">Sector Industrial</div>
+</td>
+<td class="px-6 py-5 font-mono text-sm text-secondary">A12345678</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-outline">description</span>
+                                        Seguridad Social
+                                    </div>
+</td>
+<td class="px-6 py-5 text-sm">15/05/2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold tracking-tight">Nuevo</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="text-sm font-medium">+34 912 345 678</span>
+<button class="text-primary hover:scale-110 transition-transform"><span class="material-symbols-outlined text-lg">call</span></button>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-xs font-bold uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-all">Convertir en cliente</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Marta García Pérez</div>
+<div class="text-xs text-on-surface-variant">Autónomo</div>
+</td>
+<td class="px-6 py-5 font-mono text-sm text-secondary">48576221K</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-outline">directions_car</span>
+                                        Tráfico (Exceso Vel.)
+                                    </div>
+</td>
+<td class="px-6 py-5 text-sm">15/05/2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-full text-xs font-bold tracking-tight">Revisado</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="text-sm font-medium">+34 600 123 456</span>
+<button class="text-primary hover:scale-110 transition-transform"><span class="material-symbols-outlined text-lg">call</span></button>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-xs font-bold uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-all">Convertir en cliente</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Restauración Madrid S.L.</div>
+<div class="text-xs text-on-surface-variant">Hostelería</div>
+</td>
+<td class="px-6 py-5 font-mono text-sm text-secondary">B88776655</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-outline">health_and_safety</span>
+                                        Sanidad Ambiental
+                                    </div>
+</td>
+<td class="px-6 py-5 text-sm">14/05/2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-surface-container-high text-on-surface-variant rounded-full text-xs font-bold tracking-tight">Cliente</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="text-sm font-medium">+34 911 223 344</span>
+<button class="text-primary hover:scale-110 transition-transform"><span class="material-symbols-outlined text-lg">call</span></button>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<span class="text-xs font-bold text-outline uppercase">Ya es cliente</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Logística TransGlobal</div>
+<div class="text-xs text-on-surface-variant">Transporte</div>
+</td>
+<td class="px-6 py-5 font-mono text-sm text-secondary">A99112233</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-sm text-outline">schedule</span>
+                                        Horarios Conducción
+                                    </div>
+</td>
+<td class="px-6 py-5 text-sm">14/05/2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 bg-secondary-container text-on-secondary-container rounded-full text-xs font-bold tracking-tight">Nuevo</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="text-sm font-medium">+34 932 887 766</span>
+<button class="text-primary hover:scale-110 transition-transform"><span class="material-symbols-outlined text-lg">call</span></button>
+</div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-xs font-bold uppercase tracking-widest text-primary border border-primary/20 px-3 py-1.5 rounded hover:bg-primary hover:text-white transition-all">Convertir en cliente</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-surface-container-low px-6 py-4 flex items-center justify-between">
+<span class="text-xs text-on-surface-variant font-medium uppercase tracking-wider">Mostrando 4 de 124 resultados</span>
+<div class="flex items-center gap-2">
+<button class="p-1 hover:bg-surface-container-high rounded disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded-lg text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container-high rounded-lg text-xs font-bold">2</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container-high rounded-lg text-xs font-bold">3</button>
+<button class="p-1 hover:bg-surface-container-high rounded">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Implementation -->
+<footer class="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-8 w-full font-['Inter'] text-xs uppercase tracking-widest mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center px-8 w-full max-w-screen-2xl mx-auto opacity-80 hover:opacity-100 transition-opacity duration-300">
+<span class="text-slate-500 dark:text-slate-400 mb-4 md:mb-0">© 2024 BOE Oportunidades - Agencia Estatal Boletín Oficial del Estado</span>
+<div class="flex gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 hover:underline transition-all" href="#">Aviso Legal</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 hover:underline transition-all" href="#">Privacidad</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 hover:underline transition-all" href="#">Accesibilidad</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 hover:underline transition-all" href="#">Contacto</a>
+</div>
+</div>
+</footer>
+</body></html>

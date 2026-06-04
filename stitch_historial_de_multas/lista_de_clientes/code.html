@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BOE Gestión - Lista de Clientes</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#adc7f7",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#633f0f",
+                        "secondary-fixed": "#d9e3f8",
+                        "on-tertiary-container": "#c6955e",
+                        "on-background": "#181c1e",
+                        "on-error": "#ffffff",
+                        "background": "#f7fafc",
+                        "surface-dim": "#d7dadc",
+                        "surface-bright": "#f7fafc",
+                        "surface": "#f7fafc",
+                        "secondary-fixed-dim": "#bdc7db",
+                        "primary-fixed-dim": "#adc7f7",
+                        "tertiary-fixed-dim": "#f2bc82",
+                        "on-tertiary-fixed": "#2b1700",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#321b00",
+                        "surface-container-highest": "#e0e3e5",
+                        "outline": "#74777f",
+                        "surface-variant": "#e0e3e5",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#ebeef0",
+                        "tertiary-fixed": "#ffddba",
+                        "secondary-container": "#d9e3f8",
+                        "on-secondary-fixed": "#121c2b",
+                        "on-secondary-fixed-variant": "#3e4758",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f1f4f6",
+                        "on-primary": "#ffffff",
+                        "inverse-on-surface": "#eef1f3",
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#c4c6cf",
+                        "tertiary-container": "#4f2e00",
+                        "surface-container-high": "#e5e9eb",
+                        "secondary": "#555f70",
+                        "primary-container": "#1a365d",
+                        "primary-fixed": "#d6e3ff",
+                        "on-surface-variant": "#43474e",
+                        "on-primary-fixed": "#001b3c",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#86a0cd",
+                        "on-surface": "#181c1e",
+                        "surface-tint": "#455f88",
+                        "on-secondary-container": "#5b6577",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "primary": "#002045",
+                        "inverse-surface": "#2d3133"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .surface-gradient {
+            background: linear-gradient(135deg, #002045 0%, #1a365d 100%);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-[#f1f4f6] dark:bg-[#1e293b] flex flex-col h-full py-6">
+<div class="px-6 mb-8">
+<h1 class="text-xl font-black uppercase text-[#002045] dark:text-white tracking-tighter">BOE Gestión</h1>
+<div class="mt-4 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Official institutional crest with gold and deep blue details on a clean background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA77LKEM727oxOsLwpv6wfTpksiVoT1tdeV4owclg9rEMkM1JooyI-VQcHKEIn0Ephdt-OiB4VHPeih8uA4QHS4tpKHe8WxQk0rH3kkmqwhpLrnH64oMV9n8Qgi-rU8sK8c_urC_87zkrqAK14tPMB2bKOKiwsCPB5QVj0gs1TLPXMbTtlODKDWSNn6PDw9E2XjR7DMgCd5_rW5u8tku7a-f7OReYyE9g-IcKGpB6ChXmmFXTqxtlk1Uku7vHw6OrBDWiQSryKvA30G"/>
+</div>
+<div>
+<p class="text-sm font-bold text-[#002045] dark:text-white leading-tight">Administración</p>
+<p class="text-xs text-slate-500 dark:text-slate-400">Portal de Sanciones BOE</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="text-slate-600 dark:text-slate-400 mx-2 p-3 flex items-center gap-3 hover:bg-[#e0e3e5] dark:hover:bg-slate-700 rounded-lg active:scale-95 transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Panel Control</span>
+</a>
+<a class="bg-white dark:bg-[#334155] text-[#1a365d] dark:text-white rounded-lg shadow-sm mx-2 p-3 font-semibold flex items-center gap-3 active:scale-95 transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="group" style="font-variation-settings: 'FILL' 1;">group</span>
+<span>Clientes</span>
+</a>
+<a class="text-slate-600 dark:text-slate-400 mx-2 p-3 flex items-center gap-3 hover:bg-[#e0e3e5] dark:hover:bg-slate-700 rounded-lg active:scale-95 transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span>Multas Vigentes</span>
+</a>
+<a class="text-slate-600 dark:text-slate-400 mx-2 p-3 flex items-center gap-3 hover:bg-[#e0e3e5] dark:hover:bg-slate-700 rounded-lg active:scale-95 transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span>Histórico</span>
+</a>
+<a class="text-slate-600 dark:text-slate-400 mx-2 p-3 flex items-center gap-3 hover:bg-[#e0e3e5] dark:hover:bg-slate-700 rounded-lg active:scale-95 transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="newspaper">newspaper</span>
+<span>Boletines</span>
+</a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full surface-gradient text-white py-3.5 px-6 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+<span>Generar Expediente</span>
+</button>
+<a class="text-slate-600 dark:text-slate-400 mt-4 p-3 flex items-center gap-3 hover:bg-[#e0e3e5] dark:hover:bg-slate-700 rounded-lg transition-all font-['Inter'] body-lg font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="settings_applications">settings_applications</span>
+<span>Configuración</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-[#f7fafc] dark:bg-[#0f172a] flex items-center justify-between px-8 py-3 docked full-width top-0 z-40 shadow-[0_10px_30px_rgba(24,28,30,0.06)]">
+<div class="flex items-center gap-4">
+<span class="font-['Inter'] tracking-tight headline-sm text-[#002045] dark:text-[#38bdf8] font-bold">Gestión de Clientes</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative group">
+<span class="absolute inset-y-0 left-3 flex items-center text-slate-400">
+<span class="material-symbols-outlined text-sm" data-icon="search">search</span>
+</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-high border-none rounded-md focus:ring-2 focus:ring-primary w-64 text-sm transition-all duration-200" placeholder="Buscar cliente o CIF..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-500 hover:bg-[#f1f4f6] dark:hover:bg-slate-800 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-[#f1f4f6] dark:hover:bg-slate-800 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="apps">apps</span>
+</button>
+<div class="h-8 w-px bg-outline-variant opacity-20 mx-1"></div>
+<button class="flex items-center gap-2 p-1 pl-2 pr-3 hover:bg-[#f1f4f6] dark:hover:bg-slate-800 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined text-slate-600" data-icon="account_circle" style="font-variation-settings: 'opsz' 32;">account_circle</span>
+<span class="text-sm font-semibold text-[#002045]">J. Pérez</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="p-8 flex-1">
+<!-- Header Section -->
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="text-2xl font-extrabold tracking-tight text-on-surface mb-1">Directorio de Entidades</h2>
+<p class="text-on-surface-variant">Administra la base de datos de razones sociales y su estado de cumplimiento.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-5 py-2.5 rounded-lg border border-outline-variant text-primary font-semibold hover:bg-surface-container transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="file_download">file_download</span>
+                        Exportar
+                    </button>
+<button class="px-5 py-2.5 rounded-lg surface-gradient text-white font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="person_add">person_add</span>
+                        Nuevo Cliente
+                    </button>
+</div>
+</div>
+<!-- Filters Bar -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm p-4 mb-6 flex flex-wrap items-center gap-4">
+<span class="text-xs font-bold uppercase tracking-widest text-slate-400 px-2">Filtros:</span>
+<button class="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-medium">Todos</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors">Activos</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors">Inactivos</button>
+<div class="h-6 w-px bg-outline-variant opacity-30 mx-2"></div>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors">Con Multas Pendientes</button>
+<button class="px-4 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-1">
+                    Sector
+                    <span class="material-symbols-outlined text-sm" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+</div>
+<!-- Table Container -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0_10px_30px_rgba(24,28,30,0.06)] overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant/10">
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Nombre / Razón Social</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">CIF/NIF</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Teléfono</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Última Multa</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Estado</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors duration-150 group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed flex items-center justify-center text-primary font-bold">IB</div>
+<div>
+<div class="font-bold text-[#002045]">Iberdrola España S.A.</div>
+<div class="text-xs text-slate-500">Energía y Suministros</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 font-medium text-on-surface">A-95013123</td>
+<td class="px-6 py-5 text-on-surface-variant">+34 912 345 678</td>
+<td class="px-6 py-5 text-on-surface-variant">14 May 2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">Activo</span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-sm font-bold text-primary hover:text-primary-container px-4 py-2 rounded-lg hover:bg-primary-fixed transition-all">Ver Ficha</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors duration-150 group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-tertiary-fixed flex items-center justify-center text-tertiary font-bold">TC</div>
+<div>
+<div class="font-bold text-[#002045]">Telefónica de España</div>
+<div class="text-xs text-slate-500">Telecomunicaciones</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 font-medium text-on-surface">A-28015865</td>
+<td class="px-6 py-5 text-on-surface-variant">+34 900 120 120</td>
+<td class="px-6 py-5 text-on-surface-variant">02 Feb 2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">Activo</span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-sm font-bold text-primary hover:text-primary-container px-4 py-2 rounded-lg hover:bg-primary-fixed transition-all">Ver Ficha</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors duration-150 group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-error-container flex items-center justify-center text-error font-bold">LM</div>
+<div>
+<div class="font-bold text-[#002045]">Logística Mediterránea SL</div>
+<div class="text-xs text-slate-500">Transporte Pesado</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 font-medium text-on-surface">B-46298104</td>
+<td class="px-6 py-5 text-on-surface-variant">+34 963 112 233</td>
+<td class="px-6 py-5 text-on-surface-variant">29 Nov 2023</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-error-container text-on-error-container">Inactivo</span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-sm font-bold text-primary hover:text-primary-container px-4 py-2 rounded-lg hover:bg-primary-fixed transition-all">Ver Ficha</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors duration-150 group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed-dim flex items-center justify-center text-on-primary-fixed font-bold">BM</div>
+<div>
+<div class="font-bold text-[#002045]">Banco Madrid Valores</div>
+<div class="text-xs text-slate-500">Financiero</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 font-medium text-on-surface">A-81234567</td>
+<td class="px-6 py-5 text-on-surface-variant">+34 915 812 000</td>
+<td class="px-6 py-5 text-on-surface-variant">10 Jun 2024</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">Activo</span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-sm font-bold text-primary hover:text-primary-container px-4 py-2 rounded-lg hover:bg-primary-fixed transition-all">Ver Ficha</button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container-low transition-colors duration-150 group">
+<td class="px-6 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-variant flex items-center justify-center text-on-surface font-bold">CT</div>
+<div>
+<div class="font-bold text-[#002045]">Constructora Tajo S.A.</div>
+<div class="text-xs text-slate-500">Obra Civil</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5 font-medium text-on-surface">A-19223344</td>
+<td class="px-6 py-5 text-on-surface-variant">+34 925 443 322</td>
+<td class="px-6 py-5 text-on-surface-variant">---</td>
+<td class="px-6 py-5">
+<span class="px-3 py-1 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container">Activo</span>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-sm font-bold text-primary hover:text-primary-container px-4 py-2 rounded-lg hover:bg-primary-fixed transition-all">Ver Ficha</button>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant/10 flex items-center justify-between">
+<span class="text-sm text-on-surface-variant font-medium">Mostrando 5 de 1,248 clientes</span>
+<div class="flex gap-2">
+<button class="p-2 rounded-md hover:bg-surface-container-highest transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-md bg-primary text-white text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-container-highest transition-colors text-xs font-bold">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-container-highest transition-colors text-xs font-bold">3</button>
+<span class="flex items-center px-1">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded-md hover:bg-surface-container-highest transition-colors text-xs font-bold">42</button>
+<button class="p-2 rounded-md hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="px-8 py-4 text-xs text-slate-400 flex justify-between items-center border-t border-outline-variant/10 mt-auto">
+<p>© 2024 Agencia Estatal Boletín Oficial del Estado - Sistema de Gestión de Sanciones</p>
+<div class="flex gap-4">
+<a class="hover:text-primary transition-colors" href="#">Aviso Legal</a>
+<a class="hover:text-primary transition-colors" href="#">Privacidad</a>
+<a class="hover:text-primary transition-colors" href="#">Accesibilidad</a>
+</div>
+</footer>
+</main>
+</body></html>

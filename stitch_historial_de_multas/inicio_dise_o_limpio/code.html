@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-highest": "#e0e3e5",
+              "on-secondary-container": "#5b6577",
+              "surface-tint": "#455f88",
+              "primary-container": "#1a365d",
+              "surface-bright": "#f7fafc",
+              "error-container": "#ffdad6",
+              "on-error-container": "#93000a",
+              "on-surface": "#181c1e",
+              "surface-container-low": "#f1f4f6",
+              "on-error": "#ffffff",
+              "secondary-fixed-dim": "#bdc7db",
+              "surface": "#f7fafc",
+              "on-tertiary-container": "#c6955e",
+              "on-tertiary-fixed-variant": "#633f0f",
+              "outline-variant": "#c4c6cf",
+              "on-primary-container": "#86a0cd",
+              "on-secondary-fixed-variant": "#3e4758",
+              "surface-container-high": "#e5e9eb",
+              "primary-fixed-dim": "#adc7f7",
+              "secondary": "#555f70",
+              "outline": "#74777f",
+              "tertiary": "#321b00",
+              "primary": "#002045",
+              "on-secondary": "#ffffff",
+              "error": "#ba1a1a",
+              "on-tertiary": "#ffffff",
+              "on-primary": "#ffffff",
+              "on-primary-fixed-variant": "#2d476f",
+              "on-background": "#181c1e",
+              "on-tertiary-fixed": "#2b1700",
+              "secondary-fixed": "#d9e3f8",
+              "on-primary-fixed": "#001b3c",
+              "inverse-surface": "#2d3133",
+              "surface-dim": "#d7dadc",
+              "surface-container-lowest": "#ffffff",
+              "secondary-container": "#d9e3f8",
+              "background": "#f7fafc",
+              "inverse-on-surface": "#eef1f3",
+              "primary-fixed": "#d6e3ff",
+              "on-surface-variant": "#43474e",
+              "inverse-primary": "#adc7f7",
+              "tertiary-container": "#4f2e00",
+              "tertiary-fixed-dim": "#f2bc82",
+              "surface-container": "#ebeef0",
+              "surface-variant": "#e0e3e5",
+              "on-secondary-fixed": "#121c2b",
+              "tertiary-fixed": "#ffddba"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hero-gradient {
+            background: radial-gradient(circle at 50% 50%, #f7fafc 0%, #f1f4f6 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopNavBar -->
+<nav class="bg-slate-50 dark:bg-slate-900 shadow-sm dark:shadow-none docked full-width top-0 z-50">
+<div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+<div class="text-xl font-bold tracking-tighter text-blue-950 dark:text-white">BOE Gestión</div>
+<!-- Desktop Nav -->
+<div class="hidden md:flex items-center gap-8 font-inter tracking-tight text-sm font-medium">
+<a class="text-blue-900 dark:text-blue-400 font-bold dark:border-blue-400" href="#">Inicio</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors" href="#">Multas</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors" href="#">Alta</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors" href="#">Consulta</a>
+</div>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg text-sm font-semibold transition-transform active:scale-95">
+                Acceso Privado
+            </button>
+</div>
+<div class="bg-slate-200/50 dark:bg-slate-800/50 h-[1px]"></div>
+</nav>
+<main>
+<!-- Hero Section -->
+<section class="relative min-h-[870px] flex flex-col items-center justify-center px-6 overflow-hidden hero-gradient">
+<!-- Decorative Elements -->
+<div class="relative z-10 max-w-4xl w-full text-center space-y-8">
+<div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-high text-primary font-medium text-xs tracking-wider uppercase mb-4">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">verified</span>
+                    Portal Oficial de Notificaciones
+                </div>
+<h1 class="text-5xl md:text-7xl font-extrabold tracking-tight text-primary">
+                    Oportunidades BOE
+                </h1>
+<p class="text-lg md:text-xl text-on-secondary-container max-w-2xl mx-auto font-body leading-relaxed">
+                    Accede a tu historial de multas y gestiona tus notificaciones con la máxima seguridad jurídica y transparencia institucional.
+                </p>
+<div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+<button class="w-full sm:w-auto px-8 py-4 bg-gradient-to-br from-primary to-primary-container text-on-primary rounded-xl font-bold text-lg shadow-lg hover:shadow-primary/20 transition-all active:scale-98">
+                        Entrar a la Plataforma
+                    </button>
+<button class="w-full sm:w-auto px-8 py-4 bg-surface-container-lowest text-primary border border-outline-variant/30 rounded-xl font-bold text-lg hover:bg-surface-container-low transition-all active:scale-98">
+                        Saber más
+                    </button>
+</div>
+<!-- Floating Stats Bento -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20 text-left">
+<div class="glass-card p-6 rounded-2xl border border-white/50 shadow-sm">
+<span class="material-symbols-outlined text-primary mb-3">gavel</span>
+<h3 class="font-bold text-primary">Garantía Legal</h3>
+<p class="text-sm text-on-secondary-container">Respaldo directo del Boletín Oficial del Estado.</p>
+</div>
+<div class="glass-card p-6 rounded-2xl border border-white/50 shadow-sm">
+<span class="material-symbols-outlined text-primary mb-3">speed</span>
+<h3 class="font-bold text-primary">Gestión Ágil</h3>
+<p class="text-sm text-on-secondary-container">Resolución de trámites en menos de 48 horas.</p>
+</div>
+<div class="glass-card p-6 rounded-2xl border border-white/50 shadow-sm">
+<span class="material-symbols-outlined text-primary mb-3">security</span>
+<h3 class="font-bold text-primary">Privacidad</h3>
+<p class="text-sm text-on-secondary-container">Encriptación de grado gubernamental para sus datos.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Information Section (Scroll Inferior) -->
+<section class="bg-surface-container-lowest py-24 px-6 border-t border-slate-100">
+<div class="max-w-7xl mx-auto">
+<div class="grid lg:grid-cols-2 gap-16 items-center">
+<div class="space-y-6">
+<h2 class="text-3xl font-extrabold tracking-tight text-primary leading-tight">
+                            Alta Premium para Nuevos Clientes
+                        </h2>
+<p class="text-on-secondary-container text-lg leading-relaxed">
+                            Simplificamos su relación con la administración. Por una cuota única de alta de 50€, obtenga acceso vitalicio a nuestro sistema de vigilancia activa de notificaciones y recursos automáticos.
+                        </p>
+<ul class="space-y-4">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary text-xl">check_circle</span>
+<span class="text-on-surface">Vigilancia 24/7 en todos los boletines oficiales.</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary text-xl">check_circle</span>
+<span class="text-on-surface">Asesoría jurídica inicial incluida en el alta.</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary text-xl">check_circle</span>
+<span class="text-on-surface">Panel de control unificado para múltiples DNI/CIF.</span>
+</li>
+</ul>
+<div class="pt-6">
+<button class="group inline-flex items-center gap-2 text-primary font-bold hover:translate-x-1 transition-transform">
+                                Solicitar alta ahora
+                                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+<div class="relative group">
+<div class="absolute -inset-4 bg-primary/5 rounded-3xl blur-2xl group-hover:bg-primary/10 transition-colors"></div>
+<div class="relative aspect-video rounded-2xl overflow-hidden shadow-2xl">
+<img alt="Sede Institucional" class="w-full h-full object-cover" data-alt="Modern professional office building with large glass windows and clean architectural lines reflecting blue sky and soft light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq6kWRkKztMtXbD30T1Kq1gBQ0w9YDgOQjoWj-E_l1Bvxp4Tn2fG36aArNgBXzwnosh-I4vxY4eI4XhiDjNy4U_0z4MC8sMzhaR72Lb_D_hM19AFm1AN34ujoPfqamcrPTIyoDkPxCft224qAdx5GpmjcKAwAi_qSCKMrbW-N_F3HEva9isvMAvqaSvEcQx3yQupNplOkGf1wiqG80SQy7Vobckd-mX-VOYrPO2zycPpR5r7ZmRC_emw7XE90sSSLc0GVyrx-MkF8x"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/40 to-transparent"></div>
+<div class="absolute bottom-6 left-6 text-white">
+<p class="text-sm font-medium opacity-80">Sede Central</p>
+<p class="text-lg font-bold">Confianza Institucional</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+<div class="w-full py-8 px-6 mt-auto flex flex-col md:flex-row justify-between items-center gap-4 max-w-7xl mx-auto">
+<div class="text-sm font-bold text-slate-900 dark:text-white">BOE Gestión</div>
+<div class="flex flex-wrap justify-center gap-6 text-xs font-inter text-slate-500 dark:text-slate-400">
+<a class="hover:text-blue-900 dark:hover:text-blue-300 transition-colors" href="#">Aviso Legal</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-300 transition-colors" href="#">Privacidad</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-300 transition-colors" href="#">Accesibilidad</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-300 transition-colors" href="#">Contacto</a>
+</div>
+<div class="text-xs font-inter text-slate-500 dark:text-slate-400">
+                © 2024 Agencia Estatal Boletín Oficial del Estado
+            </div>
+</div>
+</footer>
+</body></html>

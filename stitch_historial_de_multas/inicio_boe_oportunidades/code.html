@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BOE Oportunidades - Gestión Editorial de Multas</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "on-surface": "#181c1e",
+              "tertiary-fixed-dim": "#f2bc82",
+              "on-primary-fixed-variant": "#2d476f",
+              "inverse-on-surface": "#eef1f3",
+              "surface-container-highest": "#e0e3e5",
+              "primary-fixed-dim": "#adc7f7",
+              "secondary": "#555f70",
+              "surface-container-lowest": "#ffffff",
+              "on-primary": "#ffffff",
+              "surface-tint": "#455f88",
+              "error": "#ba1a1a",
+              "surface-dim": "#d7dadc",
+              "tertiary": "#321b00",
+              "inverse-surface": "#2d3133",
+              "surface-container-low": "#f1f4f6",
+              "primary": "#002045",
+              "secondary-fixed": "#d9e3f8",
+              "on-tertiary-fixed": "#2b1700",
+              "outline": "#74777f",
+              "on-secondary-fixed-variant": "#3e4758",
+              "on-surface-variant": "#43474e",
+              "on-tertiary-fixed-variant": "#633f0f",
+              "background": "#f7fafc",
+              "outline-variant": "#c4c6cf",
+              "on-secondary": "#ffffff",
+              "tertiary-container": "#4f2e00",
+              "on-secondary-fixed": "#121c2b",
+              "surface-bright": "#f7fafc",
+              "surface": "#f7fafc",
+              "surface-container": "#ebeef0",
+              "on-background": "#181c1e",
+              "primary-container": "#1a365d",
+              "secondary-fixed-dim": "#bdc7db",
+              "tertiary-fixed": "#ffddba",
+              "inverse-primary": "#adc7f7",
+              "secondary-container": "#d9e3f8",
+              "on-primary-container": "#86a0cd",
+              "surface-container-high": "#e5e9eb",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5b6577",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-primary-fixed": "#001b3c",
+              "on-tertiary-container": "#c6955e",
+              "surface-variant": "#e0e3e5",
+              "primary-fixed": "#d6e3ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      body { font-family: 'Inter', sans-serif; }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-effect {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(12px);
+      }
+      .hero-gradient {
+        background: linear-gradient(135deg, #002045 0%, #1a365d 100%);
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased">
+<!-- TopNavBar -->
+<nav class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm dark:shadow-none docked full-width top-0 z-50 fixed w-full">
+<div class="flex justify-between items-center px-8 h-16 w-full max-w-screen-2xl mx-auto font-['Inter'] antialiased tracking-tight">
+<div class="text-xl font-bold tracking-tighter text-blue-900 dark:text-blue-100">
+                BOE Oportunidades
+            </div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-blue-900 dark:text-blue-400 border-b-2 border-blue-900 dark:border-blue-400 pb-1 font-semibold" href="#">Inicio</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors" href="#">Panel de Multas</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors" href="#">Historial</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors" href="#">Clientes</a>
+</div>
+<div class="flex items-center space-x-4">
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg duration-200 ease-in-out">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg duration-200 ease-in-out">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+</nav>
+<main class="pt-16">
+<!-- Hero Section -->
+<section class="relative overflow-hidden bg-primary py-24 md:py-32">
+<div class="absolute inset-0 opacity-10">
+<div class="absolute inset-0" style="background-image: radial-gradient(circle at 2px 2px, white 1px, transparent 0); background-size: 40px 40px;"></div>
+</div>
+<div class="container mx-auto px-8 relative z-10">
+<div class="max-w-3xl">
+<h1 class="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6 leading-tight">
+                        Oportunidades diarias desde el BOE
+                    </h1>
+<p class="text-xl md:text-2xl text-on-primary-container mb-10 leading-relaxed font-light">
+                        Consulta multas recientes y contacta rápidamente con potenciales clientes para ofrecer tus servicios de defensa legal.
+                    </p>
+<div class="flex flex-col sm:flex-row gap-4">
+<button class="bg-gradient-to-br from-primary to-primary-container text-white px-8 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2 group border border-primary-fixed-dim/20">
+                            Entrar a la plataforma
+                            <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+<button class="bg-white/10 backdrop-blur-md text-white border border-white/20 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white/20 transition-all">
+                            Saber más
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Cómo funciona (Bento Grid Style) -->
+<section class="py-24 bg-surface">
+<div class="container mx-auto px-8">
+<div class="mb-16">
+<h2 class="text-3xl font-black text-primary tracking-tight mb-2 uppercase text-sm tracking-widest opacity-60">Proceso</h2>
+<h3 class="text-4xl font-bold text-on-surface">Cómo funciona</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- Step 1 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl border border-outline-variant/15 hover:shadow-xl transition-all duration-300 group">
+<div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-primary text-3xl">search_insights</span>
+</div>
+<div class="text-primary font-black text-5xl mb-4 opacity-10">01</div>
+<h4 class="text-2xl font-bold mb-4">Detectar</h4>
+<p class="text-on-surface-variant leading-relaxed">Nuestro algoritmo escanea el Boletín Oficial del Estado diariamente para identificar nuevas sanciones y notificaciones en tiempo real.</p>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl border border-outline-variant/15 hover:shadow-xl transition-all duration-300 group">
+<div class="w-14 h-14 bg-secondary-fixed rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-secondary text-3xl">chat_bubble</span>
+</div>
+<div class="text-secondary font-black text-5xl mb-4 opacity-10">02</div>
+<h4 class="text-2xl font-bold mb-4">Contactar</h4>
+<p class="text-on-surface-variant leading-relaxed">Accede a la información de contacto procesada y utiliza nuestras plantillas optimizadas para llegar a los clientes potenciales de inmediato.</p>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface-container-lowest p-10 rounded-xl border border-outline-variant/15 hover:shadow-xl transition-all duration-300 group">
+<div class="w-14 h-14 bg-tertiary-fixed rounded-full flex items-center justify-center mb-8 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-tertiary text-3xl">task_alt</span>
+</div>
+<div class="text-tertiary font-black text-5xl mb-4 opacity-10">03</div>
+<h4 class="text-2xl font-bold mb-4">Gestionar</h4>
+<p class="text-on-surface-variant leading-relaxed">Realiza un seguimiento detallado de tus conversiones y gestiona tu cartera de clientes desde un panel de control intuitivo.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Vista previa (Visual Mock) -->
+<section class="py-24 bg-surface-container-low">
+<div class="container mx-auto px-8">
+<div class="flex flex-col lg:flex-row items-center gap-16">
+<div class="lg:w-1/2">
+<h2 class="text-3xl font-black text-primary tracking-tight mb-2 uppercase text-sm tracking-widest opacity-60">Interfaz</h2>
+<h3 class="text-4xl font-bold text-on-surface mb-6">Vista previa del panel</h3>
+<p class="text-lg text-on-surface-variant mb-8 leading-relaxed">
+                            Una interfaz limpia diseñada para la eficiencia. Visualiza los datos críticos sin distracciones: importes, tipos de infracción y plazos legales en una sola mirada.
+                        </p>
+<ul class="space-y-4">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span class="font-medium">Filtros inteligentes por provincia e importe</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span class="font-medium">Exportación de datos en un clic</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span class="font-medium">Alertas personalizadas vía Email</span>
+</li>
+</ul>
+</div>
+<div class="lg:w-1/2 w-full">
+<div class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+<!-- Mockup Header -->
+<div class="bg-slate-50 border-b border-slate-100 px-6 py-4 flex justify-between items-center">
+<div class="flex gap-2">
+<div class="w-3 h-3 rounded-full bg-red-400"></div>
+<div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+<div class="w-3 h-3 rounded-full bg-green-400"></div>
+</div>
+<div class="bg-white px-4 py-1 rounded-md text-xs text-slate-400 border border-slate-200">boe-oportunidades.es/dashboard</div>
+</div>
+<!-- Mockup Table -->
+<div class="p-6">
+<div class="overflow-x-auto">
+<table class="w-full text-left text-sm">
+<thead>
+<tr class="text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-100">
+<th class="pb-4">Expediente</th>
+<th class="pb-4">Importe</th>
+<th class="pb-4">Estado</th>
+<th class="pb-4">Acción</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-4 font-medium">MU-4522/2024</td>
+<td class="py-4">1.200 €</td>
+<td class="py-4">
+<span class="px-2 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded text-xs font-bold uppercase tracking-tighter">Pendiente</span>
+</td>
+<td class="py-4"><span class="material-symbols-outlined text-primary cursor-pointer">visibility</span></td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-4 font-medium">TF-8812/2024</td>
+<td class="py-4">450 €</td>
+<td class="py-4">
+<span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded text-xs font-bold uppercase tracking-tighter">Contactado</span>
+</td>
+<td class="py-4"><span class="material-symbols-outlined text-primary cursor-pointer">visibility</span></td>
+</tr>
+<tr class="hover:bg-slate-50 transition-colors">
+<td class="py-4 font-medium">BA-1029/2024</td>
+<td class="py-4">3.600 €</td>
+<td class="py-4">
+<span class="px-2 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded text-xs font-bold uppercase tracking-tighter">Pendiente</span>
+</td>
+<td class="py-4"><span class="material-symbols-outlined text-primary cursor-pointer">visibility</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Ventajas -->
+<section class="py-24 bg-white">
+<div class="container mx-auto px-8 text-center">
+<div class="max-w-3xl mx-auto mb-16">
+<h2 class="text-3xl font-black text-primary tracking-tight mb-2 uppercase text-sm tracking-widest opacity-60">Valor</h2>
+<h3 class="text-4xl font-bold text-on-surface">Ventajas competitivas</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+<div class="flex flex-col items-center">
+<div class="w-20 h-20 bg-primary/5 rounded-2xl flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined text-4xl">timer</span>
+</div>
+<h4 class="text-xl font-bold mb-3">Ahorro de tiempo</h4>
+<p class="text-on-surface-variant">Elimina horas de búsqueda manual en el boletín. Recibe solo lo que es relevante para tu negocio.</p>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-20 h-20 bg-primary/5 rounded-2xl flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined text-4xl">bolt</span>
+</div>
+<h4 class="text-xl font-bold mb-3">Automatización</h4>
+<p class="text-on-surface-variant">Sincronización directa con las publicaciones oficiales cada 24 horas sin intervención humana.</p>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-20 h-20 bg-primary/5 rounded-2xl flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined text-4xl">rocket_launch</span>
+</div>
+<h4 class="text-xl font-bold mb-3">Rapidez</h4>
+<p class="text-on-surface-variant">Sé el primero en contactar. En el mundo legal, la velocidad de respuesta es el factor decisivo de éxito.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-950 w-full py-8 mt-auto border-t border-slate-200 dark:border-slate-800">
+<div class="flex flex-col md:flex-row justify-between items-center px-8 w-full max-w-screen-2xl mx-auto font-['Inter'] text-xs uppercase tracking-widest opacity-80">
+<div class="text-slate-500 dark:text-slate-400 mb-4 md:mb-0">
+                © 2024 BOE Oportunidades - Agencia Estatal Boletín Oficial del Estado
+            </div>
+<div class="flex space-x-6 text-slate-500 dark:text-slate-400">
+<a class="hover:text-blue-900 dark:hover:text-blue-200 transition-opacity hover:underline" href="#">Aviso Legal</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-200 transition-opacity hover:underline" href="#">Privacidad</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-200 transition-opacity hover:underline" href="#">Accesibilidad</a>
+<a class="hover:text-blue-900 dark:hover:text-blue-200 transition-opacity hover:underline" href="#">Contacto</a>
+</div>
+</div>
+</footer>
+</body></html>

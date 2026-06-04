@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Historial de Multas - BOE Oportunidades</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "on-surface": "#181c1e",
+              "tertiary-fixed-dim": "#f2bc82",
+              "on-primary-fixed-variant": "#2d476f",
+              "inverse-on-surface": "#eef1f3",
+              "surface-container-highest": "#e0e3e5",
+              "primary-fixed-dim": "#adc7f7",
+              "secondary": "#555f70",
+              "surface-container-lowest": "#ffffff",
+              "on-primary": "#ffffff",
+              "surface-tint": "#455f88",
+              "error": "#ba1a1a",
+              "surface-dim": "#d7dadc",
+              "tertiary": "#321b00",
+              "inverse-surface": "#2d3133",
+              "surface-container-low": "#f1f4f6",
+              "primary": "#002045",
+              "secondary-fixed": "#d9e3f8",
+              "on-tertiary-fixed": "#2b1700",
+              "outline": "#74777f",
+              "on-secondary-fixed-variant": "#3e4758",
+              "on-surface-variant": "#43474e",
+              "on-tertiary-fixed-variant": "#633f0f",
+              "background": "#f7fafc",
+              "outline-variant": "#c4c6cf",
+              "on-secondary": "#ffffff",
+              "tertiary-container": "#4f2e00",
+              "on-secondary-fixed": "#121c2b",
+              "surface-bright": "#f7fafc",
+              "surface": "#f7fafc",
+              "surface-container": "#ebeef0",
+              "on-background": "#181c1e",
+              "primary-container": "#1a365d",
+              "secondary-fixed-dim": "#bdc7db",
+              "tertiary-fixed": "#ffddba",
+              "inverse-primary": "#adc7f7",
+              "secondary-container": "#d9e3f8",
+              "on-primary-container": "#86a0cd",
+              "surface-container-high": "#e5e9eb",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5b6577",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-primary-fixed": "#001b3c",
+              "on-tertiary-container": "#c6955e",
+              "surface-variant": "#e0e3e5",
+              "primary-fixed": "#d6e3ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm dark:shadow-none docked full-width top-0 z-50">
+<div class="flex justify-between items-center px-8 h-16 w-full max-w-screen-2xl mx-auto font-['Inter'] antialiased tracking-tight">
+<div class="text-xl font-bold tracking-tighter text-blue-900 dark:text-blue-100">BOE Oportunidades</div>
+<nav class="hidden md:flex items-center space-x-8">
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Inicio</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Panel de Multas</a>
+<a class="text-blue-900 dark:text-blue-400 border-b-2 border-blue-900 dark:border-blue-400 pb-1 font-semibold duration-200 ease-in-out" href="#">Historial</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200 ease-in-out" href="#">Clientes</a>
+</nav>
+<div class="flex items-center space-x-4">
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined text-blue-900 dark:text-blue-400" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 rounded-lg transition-all duration-200">
+<span class="material-symbols-outlined text-blue-900 dark:text-blue-400" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-grow w-full max-w-screen-2xl mx-auto px-8 py-10">
+<!-- Header Section -->
+<div class="mb-10">
+<h1 class="text-4xl font-extrabold tracking-tight text-primary mb-2">Historial de Notificaciones</h1>
+<p class="text-on-surface-variant max-w-2xl">Gestión centralizada del archivo histórico de los últimos 4 años. Supervise el estado de prescripción y la vigencia de las sanciones editoriales.</p>
+</div>
+<!-- Search & Filter Bento Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-12">
+<!-- Search Bar Component -->
+<div class="lg:col-span-3 bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/15 flex flex-col md:flex-row gap-4 items-end">
+<div class="flex-grow w-full">
+<label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Búsqueda General</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-high rounded-lg border-none focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all" placeholder="Nombre, CIF o NIF..." type="text"/>
+</div>
+</div>
+<div class="w-full md:w-64">
+<label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2">Rango de Fecha (Hasta 4 años)</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline" data-icon="calendar_today">calendar_today</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-high rounded-lg border-none focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all" type="date"/>
+</div>
+</div>
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-8 py-3.5 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+                    Filtrar
+                </button>
+</div>
+<!-- Stats Card -->
+<div class="bg-primary text-on-primary p-6 rounded-xl shadow-md flex flex-col justify-between overflow-hidden relative">
+<div class="z-10">
+<p class="text-xs font-bold uppercase tracking-widest opacity-70">Total Histórico</p>
+<h2 class="text-4xl font-black mt-1">1.248</h2>
+</div>
+<div class="z-10 mt-4 flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary-fixed-dim" data-icon="history_edu">history_edu</span>
+<span>Registros archivados</span>
+</div>
+<!-- Decorative Abstract Pattern -->
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-[120px]" data-icon="gavel">gavel</span>
+</div>
+</div>
+</div>
+<!-- History Table Section -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/15 overflow-hidden">
+<div class="px-6 py-4 border-b border-surface-container-highest flex justify-between items-center bg-surface-container-low/30">
+<h3 class="font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="list_alt">list_alt</span>
+                    Registros de Sanciones
+                </h3>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+<span class="material-symbols-outlined text-outline" data-icon="download">download</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg transition-colors">
+<span class="material-symbols-outlined text-outline" data-icon="print">print</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Referencia</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Sancionado / CIF</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Fecha Emisión</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Estado / Prescripción</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-highest">
+<!-- Red Status (Urgent/Expiring) -->
+<tr class="hover:bg-surface-container-low transition-colors duration-200">
+<td class="px-6 py-5 font-mono text-sm text-primary font-bold">#BOE-2024-892</td>
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Construcciones Levante S.L.</div>
+<div class="text-xs text-on-surface-variant">B12345678</div>
+</td>
+<td class="px-6 py-5 text-sm">12 Mar 2024</td>
+<td class="px-6 py-5">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-error-container text-on-error-container text-xs font-bold gap-1.5">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+                                    URGENTE (Prescribe en 2 días)
+                                </div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-primary hover:bg-primary/5 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Orange Status (Expiring soon) -->
+<tr class="hover:bg-surface-container-low transition-colors duration-200">
+<td class="px-6 py-5 font-mono text-sm text-primary font-bold">#BOE-2023-114</td>
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Marta Ibáñez García</div>
+<div class="text-xs text-on-surface-variant">48293041X</div>
+</td>
+<td class="px-6 py-5 text-sm">15 Dic 2023</td>
+<td class="px-6 py-5">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed-variant text-xs font-bold gap-1.5">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span>
+                                    PRÓXIMO VENCIMIENTO (15 días)
+                                </div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-primary hover:bg-primary/5 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Green Status (Recent/Safe) -->
+<tr class="hover:bg-surface-container-low transition-colors duration-200">
+<td class="px-6 py-5 font-mono text-sm text-primary font-bold">#BOE-2024-002</td>
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Logística Transcontinental</div>
+<div class="text-xs text-on-surface-variant">B99887766</div>
+</td>
+<td class="px-6 py-5 text-sm">02 Ene 2024</td>
+<td class="px-6 py-5">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container text-xs font-bold gap-1.5">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+                                    RECIENTE (Vigente)
+                                </div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-primary hover:bg-primary/5 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Generic History Item -->
+<tr class="hover:bg-surface-container-low transition-colors duration-200">
+<td class="px-6 py-5 font-mono text-sm text-primary font-bold">#BOE-2022-456</td>
+<td class="px-6 py-5">
+<div class="font-semibold text-on-surface">Servicios Energéticos S.A.</div>
+<div class="text-xs text-on-surface-variant">A08080808</div>
+</td>
+<td class="px-6 py-5 text-sm">22 May 2022</td>
+<td class="px-6 py-5">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant text-xs font-bold gap-1.5">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+                                    ARCHIVADO
+                                </div>
+</td>
+<td class="px-6 py-5 text-right">
+<button class="text-primary hover:bg-primary/5 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 flex items-center justify-between border-t border-surface-container-highest">
+<span class="text-sm text-on-surface-variant font-medium">Mostrando 1-10 de 1.248 registros</span>
+<div class="flex gap-1">
+<button class="p-2 border border-outline-variant/30 rounded-lg hover:bg-surface-container-low transition-colors disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-bold">1</button>
+<button class="px-4 py-2 hover:bg-surface-container-low rounded-lg text-sm font-medium">2</button>
+<button class="px-4 py-2 hover:bg-surface-container-low rounded-lg text-sm font-medium">3</button>
+<button class="p-2 border border-outline-variant/30 rounded-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-8 mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center px-8 w-full max-w-screen-2xl mx-auto opacity-80 hover:opacity-100 transition-opacity font-['Inter'] text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">
+<div class="mb-4 md:mb-0">
+                © 2024 BOE Oportunidades - Agencia Estatal Boletín Oficial del Estado
+            </div>
+<div class="flex flex-wrap justify-center gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors" href="#">Aviso Legal</a>
+<a class="text-slate-500 dark:text-slate-400 hover:underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors" href="#">Privacidad</a>
+<a class="text-slate-500 dark:text-slate-400 hover:underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors" href="#">Accesibilidad</a>
+<a class="text-slate-500 dark:text-slate-400 hover:underline hover:text-blue-900 dark:hover:text-blue-200 transition-colors" href="#">Contacto</a>
+</div>
+</div>
+</footer>
+</body></html>

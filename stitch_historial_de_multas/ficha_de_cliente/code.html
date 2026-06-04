@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "on-surface": "#181c1e",
+              "tertiary-fixed-dim": "#f2bc82",
+              "on-primary-fixed-variant": "#2d476f",
+              "inverse-on-surface": "#eef1f3",
+              "surface-container-highest": "#e0e3e5",
+              "primary-fixed-dim": "#adc7f7",
+              "secondary": "#555f70",
+              "surface-container-lowest": "#ffffff",
+              "on-primary": "#ffffff",
+              "surface-tint": "#455f88",
+              "error": "#ba1a1a",
+              "surface-dim": "#d7dadc",
+              "tertiary": "#321b00",
+              "inverse-surface": "#2d3133",
+              "surface-container-low": "#f1f4f6",
+              "primary": "#002045",
+              "secondary-fixed": "#d9e3f8",
+              "on-tertiary-fixed": "#2b1700",
+              "outline": "#74777f",
+              "on-secondary-fixed-variant": "#3e4758",
+              "on-surface-variant": "#43474e",
+              "on-tertiary-fixed-variant": "#633f0f",
+              "background": "#f7fafc",
+              "outline-variant": "#c4c6cf",
+              "on-secondary": "#ffffff",
+              "tertiary-container": "#4f2e00",
+              "on-secondary-fixed": "#121c2b",
+              "surface-bright": "#f7fafc",
+              "surface": "#f7fafc",
+              "surface-container": "#ebeef0",
+              "on-background": "#181c1e",
+              "primary-container": "#1a365d",
+              "secondary-fixed-dim": "#bdc7db",
+              "tertiary-fixed": "#ffddba",
+              "inverse-primary": "#adc7f7",
+              "secondary-container": "#d9e3f8",
+              "on-primary-container": "#86a0cd",
+              "surface-container-high": "#e5e9eb",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5b6577",
+              "on-tertiary": "#ffffff",
+              "error-container": "#ffdad6",
+              "on-primary-fixed": "#001b3c",
+              "on-tertiary-container": "#c6955e",
+              "surface-variant": "#e0e3e5",
+              "primary-fixed": "#d6e3ff"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen">
+<!-- Sidebar Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 flex flex-col p-4 space-y-2 z-40 hidden md:flex">
+<div class="mb-8 px-4">
+<h1 class="font-black text-blue-900 dark:text-blue-100 tracking-widest uppercase text-lg">BOE</h1>
+<p class="text-[10px] text-slate-500 font-medium uppercase tracking-[0.2em]">Gestión Editorial</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center space-x-3 p-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-medium text-sm">Inicio</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span class="font-medium text-sm">Panel de Multas</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300 hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-medium text-sm">Historial</span>
+</a>
+<a class="flex items-center space-x-3 p-3 bg-white dark:bg-slate-800 text-blue-900 dark:text-blue-400 shadow-sm rounded-xl hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-medium text-sm">Clientes</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-1">
+<a class="flex items-center space-x-3 p-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-medium text-sm">Ajustes</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-300" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-medium text-sm">Cerrar Sesión</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-64 min-h-screen flex flex-col">
+<!-- Top Navigation -->
+<header class="bg-slate-50 dark:bg-slate-900 border-b border-slate-200/50 dark:border-slate-800/50 sticky top-0 z-30">
+<div class="flex justify-between items-center px-8 h-16 w-full max-w-screen-2xl mx-auto">
+<div class="flex items-center space-x-4">
+<button class="md:hidden p-2 text-slate-600">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h2 class="text-xl font-bold tracking-tighter text-blue-900 dark:text-blue-100">Ficha de Cliente</h2>
+</div>
+<div class="flex items-center space-x-4">
+<div class="hidden sm:flex bg-surface-container-high rounded-full px-4 py-1.5 items-center space-x-2 border border-outline-variant/15">
+<span class="material-symbols-outlined text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none text-sm focus:ring-0 placeholder:text-slate-400 w-48" placeholder="Buscar..." type="text"/>
+</div>
+<button class="p-2 text-slate-600 hover:bg-slate-100/50 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-100/50 rounded-lg transition-colors">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Profile Content -->
+<div class="p-8 max-w-screen-2xl mx-auto w-full space-y-8">
+<!-- Header Section: Bento Grid Header -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Main Identity Card -->
+<div class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/10 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+<div class="flex items-center gap-6">
+<div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center text-white text-3xl font-bold">
+                            AL
+                        </div>
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-on-surface">AgroLogística del Sur S.L.</h1>
+<div class="flex items-center gap-3 mt-1">
+<span class="text-sm font-medium text-slate-500 tracking-wide">CIF: B-82345678</span>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-secondary-container text-on-secondary-container">CLIENTE ACTIVO</span>
+</div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-3 rounded-lg border border-outline-variant hover:bg-surface-container-low transition-colors text-sm font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="edit">edit</span>
+                            Editar
+                        </button>
+<button class="px-6 py-3 rounded-lg bg-gradient-to-br from-primary to-primary-container text-white shadow-lg hover:shadow-xl transition-all text-sm font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+                            Nueva Multa
+                        </button>
+</div>
+</div>
+<!-- Stats/Quick Info -->
+<div class="bg-primary-container rounded-xl p-8 border border-outline-variant/10 shadow-sm text-white flex flex-col justify-between">
+<div>
+<p class="text-on-primary-container text-xs uppercase tracking-widest font-semibold mb-2">Deuda Pendiente</p>
+<p class="text-4xl font-black">4.280,00€</p>
+</div>
+<div class="flex items-center gap-2 mt-4 text-sm text-on-primary-container">
+<span class="material-symbols-outlined text-sm" data-icon="warning">warning</span>
+<span>3 multas en periodo ejecutivo</span>
+</div>
+</div>
+</div>
+<!-- Bento Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left Column: Details & Notes -->
+<div class="lg:col-span-4 space-y-8">
+<!-- Details Card -->
+<section class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10">
+<h3 class="text-sm font-black uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="contact_page">contact_page</span>
+                            Información de Contacto
+                        </h3>
+<div class="space-y-4">
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Persona de Contacto</p>
+<p class="text-sm font-medium">Manuel García Rodríguez</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="call">call</span>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Teléfono</p>
+<p class="text-sm font-medium">+34 912 345 678</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="mail">mail</span>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Email</p>
+<p class="text-sm font-medium">m.garcia@agrologistica.es</p>
+</div>
+</div>
+<div class="flex items-start gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+</div>
+<div>
+<p class="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Dirección Fiscal</p>
+<p class="text-sm font-medium">Pol. Ind. Oeste, Nave 42<br/>28045 Madrid</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Notes Section -->
+<section class="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/10 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="sticky_note_2">sticky_note_2</span>
+                                Notas del Cliente
+                            </h3>
+<button class="text-primary hover:text-primary-container transition-colors">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+</button>
+</div>
+<div class="bg-surface-container-low rounded-lg p-4 mb-4 border-l-4 border-primary">
+<p class="text-sm leading-relaxed text-slate-700 italic">"Cliente con tendencia a recurrir multas de transporte. Solicitar siempre documentación de carga antes de procesar."</p>
+<p class="text-[10px] mt-2 font-bold text-slate-400">Actualizado por: Admin - 12/03/2024</p>
+</div>
+<textarea class="w-full h-24 bg-surface-container-high border-none rounded-lg text-sm focus:ring-1 focus:ring-primary p-3 resize-none" placeholder="Añadir una nota rápida..."></textarea>
+</section>
+</div>
+<!-- Right Column: History & Logs -->
+<div class="lg:col-span-8 space-y-8">
+<!-- Fines History -->
+<section class="bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/10">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="gavel">gavel</span>
+                                Historial de Sanciones
+                            </h3>
+<a class="text-xs font-bold text-primary hover:underline uppercase tracking-tighter" href="#">Ver todo el historial</a>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full">
+<thead>
+<tr class="text-left">
+<th class="pb-4 text-[10px] uppercase tracking-widest text-slate-400 font-bold">Expediente</th>
+<th class="pb-4 text-[10px] uppercase tracking-widest text-slate-400 font-bold">Fecha</th>
+<th class="pb-4 text-[10px] uppercase tracking-widest text-slate-400 font-bold">Concepto</th>
+<th class="pb-4 text-[10px] uppercase tracking-widest text-slate-400 font-bold">Importe</th>
+<th class="pb-4 text-[10px] uppercase tracking-widest text-slate-400 font-bold">Estado</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 text-sm font-semibold text-primary">#BOE-2024-8192</td>
+<td class="py-4 text-sm text-slate-600">14/05/2024</td>
+<td class="py-4 text-sm text-slate-600">Exceso tiempo conducción</td>
+<td class="py-4 text-sm font-bold text-on-surface">1.200,00€</td>
+<td class="py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-black bg-tertiary-fixed text-on-tertiary-fixed-variant uppercase">Pendiente</span>
+</td>
+</tr>
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 text-sm font-semibold text-primary">#BOE-2024-7541</td>
+<td class="py-4 text-sm text-slate-600">28/04/2024</td>
+<td class="py-4 text-sm text-slate-600">Falta de visibilidad placa</td>
+<td class="py-4 text-sm font-bold text-on-surface">250,00€</td>
+<td class="py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-black bg-secondary-container text-on-secondary-container uppercase">Pagado</span>
+</td>
+</tr>
+<tr class="group hover:bg-surface-container-low transition-colors">
+<td class="py-4 text-sm font-semibold text-primary">#BOE-2024-6102</td>
+<td class="py-4 text-sm text-slate-600">10/03/2024</td>
+<td class="py-4 text-sm text-slate-600">Exceso de carga (+15%)</td>
+<td class="py-4 text-sm font-bold text-on-surface">2.830,00€</td>
+<td class="py-4">
+<span class="inline-flex items-center px-2 py-1 rounded text-[10px] font-black bg-error-container text-on-error-container uppercase">Ejecutiva</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Action Log / Timeline -->
+<section class="bg-surface-container-lowest rounded-xl p-8 border border-outline-variant/10">
+<h3 class="text-sm font-black uppercase tracking-widest text-primary mb-8 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="history_toggle_off">history_toggle_off</span>
+                            Registro de Actividad
+                        </h3>
+<div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-slate-200 before:to-transparent">
+<!-- Timeline Item 1 -->
+<div class="relative flex items-start gap-4">
+<div class="absolute left-0 w-10 h-10 rounded-full bg-white border-2 border-primary flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="call">call</span>
+</div>
+<div class="ml-14 bg-surface-container-low rounded-xl p-4 w-full shadow-sm">
+<div class="flex justify-between items-start mb-2">
+<h4 class="text-sm font-bold text-on-surface">Llamada de Seguimiento</h4>
+<span class="text-[10px] font-bold text-slate-400">Hoy, 10:45</span>
+</div>
+<p class="text-sm text-slate-600">Se contacta con Manuel para informar sobre el vencimiento del expediente #BOE-2024-8192. Promete pago para final de semana.</p>
+<p class="text-[10px] mt-3 font-bold text-primary uppercase tracking-tighter">Operador: Lucía Torres</p>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative flex items-start gap-4">
+<div class="absolute left-0 w-10 h-10 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-slate-400 text-sm" data-icon="mail">mail</span>
+</div>
+<div class="ml-14 bg-surface-container-low rounded-xl p-4 w-full">
+<div class="flex justify-between items-start mb-2">
+<h4 class="text-sm font-bold text-on-surface">Notificación Enviada</h4>
+<span class="text-[10px] font-bold text-slate-400">14 May, 09:00</span>
+</div>
+<p class="text-sm text-slate-600">Envío automático de PDF con resolución de sanción por correo electrónico certificado.</p>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative flex items-start gap-4">
+<div class="absolute left-0 w-10 h-10 rounded-full bg-white border-2 border-secondary-container flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-secondary text-sm" data-icon="payments">payments</span>
+</div>
+<div class="ml-14 bg-surface-container-low rounded-xl p-4 w-full">
+<div class="flex justify-between items-start mb-2">
+<h4 class="text-sm font-bold text-on-surface">Pago Recibido</h4>
+<span class="text-[10px] font-bold text-slate-400">28 Abr, 16:20</span>
+</div>
+<p class="text-sm text-slate-600">Confirmación de transferencia bancaria por importe de 250,00€ correspondiente al expediente #BOE-2024-7541.</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 py-8 mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center px-8 w-full max-w-screen-2xl mx-auto gap-4">
+<p class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    © 2024 BOE Oportunidades - Agencia Estatal Boletín Oficial del Estado
+                </p>
+<div class="flex space-x-6">
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 transition-opacity opacity-80 hover:opacity-100" href="#">Aviso Legal</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 transition-opacity opacity-80 hover:opacity-100" href="#">Privacidad</a>
+<a class="font-['Inter'] text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-blue-900 dark:hover:text-blue-200 transition-opacity opacity-80 hover:opacity-100" href="#">Contacto</a>
+</div>
+</div>
+</footer>
+</main>
+<!-- Mobile Bottom Navigation -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-50 border-t border-slate-200 px-6 py-2 flex justify-between items-center z-40">
+<a class="flex flex-col items-center p-2 text-slate-400" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[10px] font-bold mt-1">Inicio</span>
+</a>
+<a class="flex flex-col items-center p-2 text-slate-400" href="#">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span class="text-[10px] font-bold mt-1">Multas</span>
+</a>
+<a class="flex flex-col items-center p-2 text-blue-900" href="#">
+<span class="material-symbols-outlined" data-icon="group" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="text-[10px] font-bold mt-1">Clientes</span>
+</a>
+<a class="flex flex-col items-center p-2 text-slate-400" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px] font-bold mt-1">Perfil</span>
+</a>
+</nav>
+</body></html>
