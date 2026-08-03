@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -45,8 +46,8 @@ async def list_sanciones(
     search: str | None = None,
     organismo: str | None = None,
     tipo_infraccion: str | None = None,
-    fecha_desde: str | None = None,
-    fecha_hasta: str | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):

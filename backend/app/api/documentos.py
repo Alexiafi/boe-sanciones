@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -21,8 +22,8 @@ async def list_documentos(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = None,
-    fecha_desde: str | None = None,
-    fecha_hasta: str | None = None,
+    fecha_desde: date | None = None,
+    fecha_hasta: date | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(BoeDocumento).order_by(BoeDocumento.fecha_publicacion.desc())
