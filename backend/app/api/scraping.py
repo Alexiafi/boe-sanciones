@@ -65,6 +65,7 @@ async def detect_gaps(
             ScrapingRun.fecha_boe >= start,
             ScrapingRun.fecha_boe <= end,
             ScrapingRun.status == "completed",
+            ScrapingRun.tipo == "diario",
         )
         .distinct()
     )

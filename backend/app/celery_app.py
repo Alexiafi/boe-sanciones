@@ -7,7 +7,12 @@ celery = Celery(
     "boe_sanciones",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.scraping", "app.tasks.enrichment"],
+    include=[
+        "app.tasks.scraping",
+        "app.tasks.enrichment",
+        "app.tasks.historico_backfill",
+        "app.tasks.historico_extraccion",
+    ],
 )
 
 celery.conf.update(

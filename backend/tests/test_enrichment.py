@@ -197,6 +197,7 @@ def test_cache_avoids_a_second_provider_call(monkeypatch, clean_database):
     session.commit()
 
     assert len(calls) == 1
+    session.close()
 
 
 @pytest.mark.integration
@@ -222,6 +223,7 @@ def test_robots_disallow_yields_omitido_not_no_encontrado(monkeypatch, clean_dat
     # An omitido attempt must not flip contacto_estado away from "pendiente":
     # it is eligible for a retry, unlike a genuine "no_encontrado".
     assert sancionado.contacto_estado == "pendiente"
+    session.close()
 
 
 @pytest.mark.integration
@@ -254,6 +256,7 @@ def test_manual_contact_is_never_overwritten(monkeypatch, clean_database):
     attempts = session.execute(select(EnriquecimientoIntento)).scalars().all()
     assert len(attempts) == 1
     assert attempts[0].resultado == "omitido"
+    session.close()
 
 
 @pytest.mark.integration
@@ -272,6 +275,7 @@ def test_disabled_enrichment_never_constructs_http_client(monkeypatch, clean_dat
 
     with pytest.raises(enrichment_service.EnrichmentDisabled):
         enrichment_service.enrich_sancionado(session, sancionado)
+    session.close()
 
 
 @pytest.mark.integration
@@ -289,6 +293,17 @@ def test_enrichment_available_reports_missing_configuration(monkeypatch, clean_d
     monkeypatch.setattr(settings, "tavily_api_key", "")
     available, reason = enrichment_service.enrichment_available()
     assert not available and "TAVILY_API_KEY" in reason
+
+    monkeypatch.setattr(settings, "enrichment_search_provider", "dataforseo")
+    monkeypatch.setattr(settings, "dataforseo_login", "")
+    monkeypatch.setattr(settings, "dataforseo_password", "")
+    available, reason = enrichment_service.enrichment_available()
+    assert not available and "DATAFORSEO" in reason
+
+    monkeypatch.setattr(settings, "dataforseo_login", "login")
+    monkeypatch.setattr(settings, "dataforseo_password", "password")
+    available, reason = enrichment_service.enrichment_available()
+    assert available and reason is None
 
     monkeypatch.setattr(settings, "tavily_api_key", "test-key")
     available, reason = enrichment_service.enrichment_available()
@@ -317,3 +332,4 @@ def test_empty_query_is_recorded_without_any_provider_call(monkeypatch, clean_da
     assert calls == []
     attempts = session.execute(select(EnriquecimientoIntento)).scalars().all()
     assert len(attempts) == 1
+    session.close()

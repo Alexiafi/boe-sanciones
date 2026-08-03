@@ -21,6 +21,7 @@ from app.models.scraping_run import ScrapingRun
 from app.services.boe_client import fetch_document_content, fetch_document_pdf, fetch_sumario, flatten_sumario, hash_text
 from app.services.classifier import classify_document, should_skip_section, verify_with_body
 from app.services.extractor import ResultadoExtraccion, extract_sanctions
+from app.services.historico.indexado import upsert_from_doc_data
 from app.services.notifier import create_inapp_notification, send_email_digest
 from app.services.oportunidades import upsert_afectado
 from app.services.parser import extract_text_from_document, pdf_to_text
@@ -140,6 +141,20 @@ def _process_candidate(db, run, doc_data: dict[str, Any], text_value: str, sourc
         document.texto_plano = text_value[:50_000]
         document.hash_texto = hash_text(text_value)
 
+    # Free daily accumulation into the historical index: this candidate's
+    # text is already in memory, so indexing it costs one extra INSERT/UPDATE
+    # and zero network/LLM calls. This is the only way TEU history older than
+    # its public 90-day window will ever exist (see historico/teu_publico.py).
+    if settings.historico_indexado_diario_enabled:
+        try:
+            fuente_historico = "teu" if familia == "notificacion_teu" else "boe"
+            upsert_from_doc_data(
+                db, doc_data, text_value or document.texto_plano, fuente=fuente_historico,
+                origen_indexado="diario", familia_sancionadora=familia, confidence=confidence,
+            )
+        except Exception:
+            logger.exception("No se pudo indexar %s en el histórico diario", doc_data.get("identificador"))
+
     if not allow_extraction:
         return
     if document.extraction_status == "completed" and not force:
@@ -202,12 +217,20 @@ def run_scraping(fecha_str: str | None = None, force: bool = False, permitir_ext
         lock_acquired = _try_acquire_lock(lock_connection, target_date)
         if not lock_acquired:
             return {**stats, "skipped": True, "reason": "already_running"}
-        previous = db.execute(select(ScrapingRun).where(ScrapingRun.fecha_boe == target_date, ScrapingRun.status == "completed").order_by(ScrapingRun.id.desc())).scalar_one_or_none()
+        # tipo == "diario" only: a same-day historico_cliente extraction audit
+        # row (tasks/historico_extraccion.py) must never make this pipeline
+        # believe the day's real BOE ingestion already ran.
+        previous = db.execute(
+            select(ScrapingRun).where(
+                ScrapingRun.fecha_boe == target_date, ScrapingRun.status == "completed",
+                ScrapingRun.tipo == "diario",
+            ).order_by(ScrapingRun.id.desc())
+        ).scalar_one_or_none()
         if previous and not force and not allow_extraction:
             return {**stats, "skipped": True, "reason": f"already_completed (run #{previous.id})"}
 
         run = ScrapingRun(
-            fecha_boe=target_date, status="running", started_at=datetime.now(timezone.utc),
+            fecha_boe=target_date, tipo="diario", status="running", started_at=datetime.now(timezone.utc),
             extraction_requested=allow_extraction, extraction_provider="openai" if allow_extraction else "disabled",
             extraction_limit=limit, extraction_attempts=0,
         )

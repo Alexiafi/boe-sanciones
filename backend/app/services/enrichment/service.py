@@ -71,6 +71,8 @@ def enrichment_available(provider_name: str | None = None) -> tuple[bool, str | 
         return False, "TAVILY_API_KEY no está configurado."
     if name == "serper" and not settings.serper_api_key:
         return False, "SERPER_API_KEY no está configurado."
+    if name == "dataforseo" and not (settings.dataforseo_login and settings.dataforseo_password):
+        return False, "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD no están configurados."
     return True, None
 
 

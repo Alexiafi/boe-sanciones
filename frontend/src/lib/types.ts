@@ -137,6 +137,114 @@ export interface ClienteDetail extends Cliente {
   acciones: AccionAgendada[];
 }
 
+export interface HistoricoResultado {
+  id: number;
+  cliente_id: number;
+  historico_doc_id: number;
+  score: number;
+  via_match: "cif" | "dni" | "matricula" | "nombre" | "nombre_dni_parcial" | "teu_publico";
+  estado: "nuevo" | "confirmado" | "descartado";
+  extraido: boolean;
+  datos_extraidos: Record<string, unknown> | null;
+  created_at: string;
+  boe_id: string | null;
+  fuente: "boe" | "teu" | null;
+  fecha_publicacion: string | null;
+  titulo: string | null;
+  url_pdf: string | null;
+  url_html: string | null;
+  url_xml: string | null;
+  fuera_de_ventana_teu: boolean;
+}
+
+export interface CoberturaTeu {
+  ventana_publica_desde: string;
+  consulta_en_vivo: boolean;
+  motivo_sin_consulta: string | null;
+}
+
+export interface ConsultaItem {
+  historico_doc_id: number;
+  boe_id: string;
+  fuente: "boe" | "teu";
+  fecha_publicacion: string;
+  titulo: string;
+  via_match: string;
+  score: number;
+  url_pdf: string | null;
+  url_html: string | null;
+  url_xml: string | null;
+  fuera_de_ventana_teu: boolean;
+}
+
+export interface HistoricoDocItem {
+  id: number;
+  boe_id: string;
+  fuente: "boe" | "teu";
+  fecha_publicacion: string;
+  titulo: string;
+  departamento_nombre: string | null;
+  url_pdf: string | null;
+  url_html: string | null;
+  url_xml: string | null;
+  origen_indexado: string;
+  fuera_de_ventana_teu: boolean;
+}
+
+export interface HistoricoCobertura {
+  boe_desde: string | null;
+  boe_hasta: string | null;
+  boe_dias_indexados: number;
+  teu_desde: string | null;
+  teu_hasta: string | null;
+  teu_dias_indexados: number;
+  total_documentos: number;
+  ventana_publica_teu_desde: string;
+}
+
+export interface BackfillPlan {
+  fecha_desde: string;
+  fecha_hasta: string;
+  dias: number;
+  documentos_estimados: number;
+  candidatos_estimados: number;
+  max_dias_por_ejecucion: number;
+  max_documentos_por_ejecucion: number;
+  ejecuciones_estimadas: number;
+  token: string;
+  aviso: string;
+}
+
+export interface BackfillRun {
+  id: number;
+  fecha_desde: string;
+  fecha_hasta: string;
+  cursor_fecha: string | null;
+  ultima_fecha_completada: string | null;
+  status: "pendiente" | "en_curso" | "pausado" | "completado" | "error";
+  dias_totales: number;
+  dias_procesados: number;
+  docs_vistos: number;
+  docs_candidatos: number;
+  docs_indexados: number;
+  errores: number;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface DocumentoComercial {
+  id: number;
+  cliente_id: number;
+  tipo: "contrato" | "factura";
+  serie: string | null;
+  numero: string | null;
+  estado: "generado" | "enviado" | "error_envio";
+  email_destino: string | null;
+  enviado_at: string | null;
+  created_at: string;
+  datos: Record<string, unknown> | null;
+}
+
 export interface Seguimiento {
   id: number;
   sancionado_id: number;

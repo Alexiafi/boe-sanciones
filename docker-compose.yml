@@ -27,6 +27,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # Zero-marginal-cost discovery provider for contact enrichment (session 2
+  # research). Set SEARXNG_URL=http://searxng:8080, ENRICHMENT_SEARCH_PROVIDER=searxng
+  # and ENRICHMENT_ENABLED=true in .env to use it. Self-hosted only; not exposed
+  # beyond localhost:8080.
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -87,6 +101,19 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+
+  # Local SMTP sandbox: everything the app "sends" lands here instead of a
+  # real mailbox. Not started by `docker compose up` — only with
+  # `--profile dev-mail` — so a plain startup never risks a real send even if
+  # EMAIL_SENDING_ENABLED were mistakenly true. Point SMTP_HOST=mailpit,
+  # SMTP_PORT=1025, SMTP_USE_TLS=false at it in .env, then browse
+  # http://localhost:8025 to see delivered emails and their PDF attachments.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["dev-mail"]
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
   frontend:
     build:

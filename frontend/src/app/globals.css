@@ -1,47 +1,179 @@
 @import "tailwindcss";
 
+/*
+ * "Minimalismo Autoritario / Claridad Soberana" — see PLAN.md §8.1 and
+ * stitch_historial_de_multas/criterio_administrativo/DESIGN.md. Tokens are
+ * lifted verbatim from the approved mockups
+ * (stitch_historial_de_multas/*\/code.html's tailwind.config color block) so
+ * the rebuilt screens match pixel-for-pixel, not just "in spirit".
+ *
+ * Layering rule: no 1px borders between sections — depth comes from stacking
+ * surface -> surface-container-low -> surface-container-lowest (cards) ->
+ * surface-container-highest (nested/technical info), never from a border.
+ */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --primary: #1d4ed8;
-  --primary-foreground: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
-  --accent: #f59e0b;
-  --destructive: #dc2626;
-  --success: #16a34a;
-  --ring: #3b82f6;
-  --sidebar-bg: #1e293b;
-  --sidebar-fg: #e2e8f0;
-  --sidebar-active: #3b82f6;
+  --primary: #002045;
+  --primary-container: #1a365d;
+  --on-primary: #ffffff;
+  --on-primary-container: #86a0cd;
+
+  --secondary: #555f70;
+  --secondary-container: #d9e3f8;
+  --on-secondary: #ffffff;
+  --on-secondary-container: #5b6577;
+
+  --tertiary-container: #4f2e00;
+  --tertiary-fixed: #ffddba;
+  --on-tertiary-fixed-variant: #633f0f;
+
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  --on-error-container: #93000a;
+
+  --success: #1a6634;
+  --success-container: #c6f0d3;
+  --on-success-container: #0a3d1a;
+
+  --surface: #f7fafc;
+  --surface-bright: #f7fafc;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f1f4f6;
+  --surface-container: #ebeef0;
+  --surface-container-high: #e5e9eb;
+  --surface-container-highest: #e0e3e5;
+
+  --on-surface: #181c1e;
+  --on-surface-variant: #43474e;
+  --outline: #74777f;
+  --outline-variant: #c4c6cf;
+
+  --sidebar-bg: #0a1a2f;
+  --sidebar-fg: #e5e9eb;
+  --sidebar-active: #1a365d;
+
+  --shadow-ambient: 0 10px 30px rgba(24, 28, 30, 0.06);
+  --radius-lg: 0.5rem;
+}
+
+:root[data-theme="dark"] {
+  --surface: #101418;
+  --surface-bright: #14191e;
+  --surface-container-lowest: #181d22;
+  --surface-container-low: #1a2027;
+  --surface-container: #1e252c;
+  --surface-container-high: #232a32;
+  --surface-container-highest: #283038;
+  --on-surface: #e4e7ea;
+  --on-surface-variant: #c4c9cf;
+  --outline: #8b9099;
+  --outline-variant: #3a4149;
+  --primary-container: #2d476f;
+  --on-primary-container: #d6e3ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #101418;
+    --surface-bright: #14191e;
+    --surface-container-lowest: #181d22;
+    --surface-container-low: #1a2027;
+    --surface-container: #1e252c;
+    --surface-container-high: #232a32;
+    --surface-container-highest: #283038;
+    --on-surface: #e4e7ea;
+    --on-surface-variant: #c4c9cf;
+    --outline: #8b9099;
+    --outline-variant: #3a4149;
+    --primary-container: #2d476f;
+    --on-primary-container: #d6e3ff;
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-destructive: var(--destructive);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary: var(--on-primary);
+  --color-on-primary-container: var(--on-primary-container);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary: var(--on-secondary);
+  --color-on-secondary-container: var(--on-secondary-container);
+
+  --color-tertiary-container: var(--tertiary-container);
+  --color-tertiary-fixed: var(--tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--on-tertiary-fixed-variant);
+
+  --color-error: var(--error);
+  --color-error-container: var(--error-container);
+  --color-on-error: var(--on-error);
+  --color-on-error-container: var(--on-error-container);
+
   --color-success: var(--success);
-  --color-ring: var(--ring);
+  --color-success-container: var(--success-container);
+  --color-on-success-container: var(--on-success-container);
+
+  --color-surface: var(--surface);
+  --color-surface-bright: var(--surface-bright);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+
+  --color-on-surface: var(--on-surface);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-outline: var(--outline);
+  --color-outline-variant: var(--outline-variant);
+
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-active: var(--sidebar-active);
-  --font-sans: Arial, Helvetica, sans-serif;
+
+  /* Legacy aliases kept during the redesign migration so any not-yet-ported
+     class (bg-background, text-foreground, bg-card, border-border...)
+     degrades onto the new palette instead of a hardcoded old color. */
+  --color-background: var(--surface);
+  --color-foreground: var(--on-surface);
+  --color-card: var(--surface-container-lowest);
+  --color-card-foreground: var(--on-surface);
+  --color-muted: var(--surface-container-low);
+  --color-muted-foreground: var(--on-surface-variant);
+  --color-border: var(--outline-variant);
+  --color-accent: var(--tertiary-fixed);
+  --color-destructive: var(--error);
+  --color-ring: var(--primary);
+
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ghost border: the only acceptable "line" in this system — outline-variant
+   diluted to 15%, never an opaque 1px border. Utility for anywhere a subtle
+   boundary is unavoidable (e.g. a focus ring container). */
+.ghost-border {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-variant) 15%, transparent);
+}
+
+.shadow-ambient {
+  box-shadow: var(--shadow-ambient);
+}
+
+/* CTA gradient, 135°, per DESIGN.md §2. */
+.gradient-primary {
+  background-image: linear-gradient(135deg, var(--primary), var(--primary-container));
+}
+
+::selection {
+  background: var(--primary-container);
+  color: var(--on-primary);
 }

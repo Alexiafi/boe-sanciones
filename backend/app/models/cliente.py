@@ -54,6 +54,12 @@ class Cliente(Base):
     notas: Mapped[list["NotaCliente"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     actividades: Mapped[list["ActividadCliente"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     acciones: Mapped[list["AccionAgendada"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
+    historico_resultados: Mapped[list["HistoricoResultado"]] = relationship(  # noqa: F821
+        back_populates="cliente", cascade="all, delete-orphan"
+    )
+    documentos_comerciales: Mapped[list["DocumentoComercial"]] = relationship(  # noqa: F821
+        cascade="all, delete-orphan"
+    )
 
 
 class CodigoClienteContador(Base):

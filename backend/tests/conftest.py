@@ -6,6 +6,29 @@ import pytest
 from sqlalchemy import text
 
 from app.database import SyncSessionLocal, async_engine
+from app.services import extractor as extractor_module
+
+# NOTE: there is deliberately no blanket "ban httpx.Client everywhere" fixture
+# here. httpx.Client() does not open a socket at construction time (it's a
+# lazy connection pool), and the existing enrichment tests construct one
+# legitimately (enrichment enabled + fixture provider) while mocking the
+# actual request-making call (_fetch/_robots_allows) deeper in the cascade.
+# Each module that must prove it NEVER reaches the network when disabled
+# does so locally with its own monkeypatch of httpx.Client to a raising fake
+# (see test_enrichment.py's "..._never_constructs_http_client" tests and
+# test_historico_teu.py) — that per-test discipline is what's load-bearing,
+# not a global trap that would also catch legitimate enabled-path requests.
+
+
+@pytest.fixture(autouse=True)
+def _sin_openai(monkeypatch):
+    """No test may construct a real OpenAI client. Tests that exercise
+    extraction inject a fake extractor/OpenAI stand-in explicitly."""
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("Ningún test puede construir un cliente OpenAI real")
+
+    monkeypatch.setattr(extractor_module, "OpenAI", _boom)
 
 
 @pytest.fixture(autouse=True)
@@ -33,10 +56,13 @@ def clean_database():
         # sancionados itself, without hitting either FK constraint.
         session.execute(text("UPDATE sancionados SET cliente_id = NULL"))
         for table in (
+            "documentos_comerciales", "contadores_factura",
+            "historico_resultados", "historico_backfill_runs",
             "acciones_agendadas", "actividades_cliente", "notas_cliente", "clientes",
             "codigo_cliente_contadores",
             "enriquecimiento_intentos", "enriquecimiento_cache",
             "notificaciones", "seguimientos", "sancionados", "boe_documentos",
+            "historico_docs",
             "scraping_runs", "codigo_oportunidad_contadores",
         ):
             session.execute(text(f"DELETE FROM {table}"))

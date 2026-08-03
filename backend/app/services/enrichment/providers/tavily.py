@@ -1,6 +1,15 @@
-"""Tavily search provider — managed alternative with a no-card-required free tier
-(1,000 credits/month, verified in the session 2 research). Disabled unless
-``TAVILY_API_KEY`` is set.
+"""Tavily search provider — NOT RECOMMENDED for this use case.
+
+Deep research (2026-08-03, deep-research-report (14).md) found that Tavily's
+platform terms (updated 2026-05-04) prohibit using the service in connection
+with "unsolicited marketing proposals". This project's enrichment step exists
+specifically to locate a sanctioned party's contact for an unsolicited
+commercial approach, which is a direct contractual risk. Do not enable this
+provider in production without Tavily's written authorization (ideally an
+Order Form that expressly overrides that clause). Kept here only so the
+interface exists if such authorization is ever obtained; disabled unless
+``TAVILY_API_KEY`` is set, and ``ENRICHMENT_SEARCH_PROVIDER`` should not
+default or be pointed to "tavily" without that authorization.
 """
 
 from __future__ import annotations
