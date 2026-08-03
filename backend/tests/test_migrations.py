@@ -26,10 +26,72 @@ def test_migrations_reach_opportunity_head(clean_database):
     inspector = inspect(sync_engine)
     assert {"boe_documentos", "sancionados", "codigo_oportunidad_contadores", "alembic_version"}.issubset(set(inspector.get_table_names()))
     columns = {column["name"] for column in inspector.get_columns("sancionados")}
-    assert {"codigo", "estado_oportunidad", "origen_clave", "importe_deuda_eur"}.issubset(columns)
+    assert {"codigo", "estado_oportunidad", "origen_clave", "importe_deuda_eur", "contacto_estado"}.issubset(columns)
     revisions = Path("alembic/versions")
     assert (revisions / "0001_legacy_baseline.py").exists()
     assert (revisions / "0002_opportunity_core.py").exists()
+    assert (revisions / "0003_enrichment_core.py").exists()
+    assert (revisions / "0004_clientes_crm.py").exists()
+    assert (revisions / "0005_historico_core.py").exists()
+    assert (revisions / "0006_documentos_comerciales.py").exists()
+
+
+@pytest.mark.integration
+def test_migrations_reach_historico_head(clean_database):
+    inspector = inspect(sync_engine)
+    tables = set(inspector.get_table_names())
+    assert {
+        "historico_docs", "historico_resultados", "historico_backfill_runs",
+        "plantillas_documento", "documentos_comerciales", "contadores_factura",
+    }.issubset(tables)
+
+    scraping_columns = {column["name"] for column in inspector.get_columns("scraping_runs")}
+    assert "tipo" in scraping_columns
+
+    gin_indexes = {
+        row[0]
+        for row in sync_engine.connect().execute(
+            text(
+                "SELECT indexname FROM pg_indexes WHERE tablename = 'historico_docs' "
+                "AND indexdef ILIKE '%USING gin%'"
+            )
+        )
+    }
+    assert {
+        "ix_historico_docs_tsv",
+        "ix_historico_docs_identificadores",
+        "ix_historico_docs_matriculas",
+    }.issubset(gin_indexes)
+
+    with sync_engine.begin() as connection:
+        tsv = connection.execute(
+            text(
+                "INSERT INTO historico_docs "
+                "(boe_id, fuente, fecha_publicacion, titulo, nombres_norm) "
+                "VALUES ('BOE-TEST-TSV', 'boe', '2026-01-01', 'Prueba', 'ACME LOGISTICA SL') "
+                "RETURNING tsv"
+            )
+        ).scalar_one()
+        assert tsv is not None
+        matched = connection.execute(
+            text(
+                "SELECT 1 FROM historico_docs WHERE boe_id = 'BOE-TEST-TSV' "
+                "AND tsv @@ plainto_tsquery('simple', 'ACME LOGISTICA')"
+            )
+        ).scalar_one_or_none()
+        assert matched == 1
+        connection.execute(text("DELETE FROM historico_docs WHERE boe_id = 'BOE-TEST-TSV'"))
+
+
+@pytest.mark.integration
+def test_downgrade_from_historico_head_round_trips():
+    config = _alembic_config()
+    command.downgrade(config, "0004_clientes_crm")
+    inspector = inspect(sync_engine)
+    assert "historico_docs" not in set(inspector.get_table_names())
+    command.upgrade(config, "head")
+    inspector = inspect(sync_engine)
+    assert "historico_docs" in set(inspector.get_table_names())
 
 
 @pytest.mark.integration
@@ -64,7 +126,7 @@ def test_bootstrap_empty_and_legacy_schema_preserves_duplicate_rows():
         rows = connection.execute(
             text("SELECT codigo, origen_clave, estado_oportunidad FROM sancionados ORDER BY id")
         ).mappings().all()
-    assert revision == "0002_opportunity_core"
+    assert revision == "0006_documentos_comerciales"
     assert [row["codigo"] for row in rows] == ["OP-2025-000001", "OP-2025-000002"]
     assert len({row["origen_clave"] for row in rows}) == 2
     assert {row["estado_oportunidad"] for row in rows} == {"nueva"}

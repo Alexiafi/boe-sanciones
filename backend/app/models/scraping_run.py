@@ -12,6 +12,15 @@ class ScrapingRun(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     fecha_boe: Mapped[date] = mapped_column(Date, nullable=False)
+    # "diario" (daily/manual BOE pipeline) or "historico_cliente" (on-demand
+    # OpenAI extraction over selected historical documents, see
+    # tasks/historico_extraccion.py). Historical backfill progress is tracked
+    # separately in HistoricoBackfillRun — see that model's docstring for why
+    # it must never share a row with a single fecha_boe like this table does:
+    # run_scraping()'s "skip if already completed" check and
+    # GET /api/scraping/gaps both key off (fecha_boe, status) here, and a
+    # backfill row would make either silently treat a real date as covered.
+    tipo: Mapped[str] = mapped_column(String(20), default="diario", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     total_docs: Mapped[Optional[int]] = mapped_column(Integer)
     candidates: Mapped[Optional[int]] = mapped_column(Integer)

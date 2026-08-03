@@ -42,6 +42,17 @@ class SancionadoOut(BaseModel):
     observaciones: str | None = None
     created_at: datetime
 
+    # Contact enrichment (session 2)
+    web: str | None = None
+    linkedin_url: str | None = None
+    telefono_secundario: str | None = None
+    contacto_estado: str = "pendiente"
+    contacto_fuente: str | None = None
+    contacto_url: str | None = None
+    contacto_confidence: float | None = None
+    contacto_actualizado_at: datetime | None = None
+    cliente_id: int | None = None
+
     # Denormalized from documento for list views
     boe_id: str | None = None
     fecha_publicacion: str | None = None
@@ -54,6 +65,30 @@ class SancionadoOut(BaseModel):
 
 class SancionadoDetail(SancionadoOut):
     seguimientos: list["SeguimientoOut"] = []
+
+
+class EnriquecimientoIntentoOut(BaseModel):
+    id: int
+    sancionado_id: int
+    proveedor: str
+    consulta: str | None = None
+    resultado: str
+    url_origen: str | None = None
+    confidence: float | None = None
+    evidencia: str | None = None
+    coste_estimado_eur: float | None = None
+    duracion_ms: int | None = None
+    error: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class EnriquecimientoLoteRequest(BaseModel):
+    confirmar: bool = False
+    limite: int | None = None
+    fecha_desde: date | None = None
+    fecha_hasta: date | None = None
 
 
 class SeguimientoOut(BaseModel):
@@ -71,24 +106,58 @@ class SeguimientoCreate(BaseModel):
     estado: str = "pendiente"
 
 
+def _validate_phone_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > 50 or not re.fullmatch(r"[0-9+()./ -]+", value):
+        raise ValueError("Teléfono no válido")
+    return value
+
+
+def _validate_url_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > 500 or not re.match(r"^https?://", value):
+        raise ValueError("URL no válida (debe comenzar por http:// o https://)")
+    return value
+
+
+# Manual edits touch these fields; the PATCH handler uses this set to decide
+# whether to (re)mark contacto_estado as "manual" so automatic enrichment never
+# overwrites what the user just entered.
+CONTACT_FIELDS = frozenset({"telefono", "email", "web", "linkedin_url", "telefono_secundario"})
+
+
 class SancionadoUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
     estado_oportunidad: Literal["nueva", "revisada", "contactada", "descartada"] | None = None
     telefono: str | None = None
     email: str | None = None
+    web: str | None = None
+    linkedin_url: str | None = None
+    telefono_secundario: str | None = None
 
-    @field_validator("telefono", mode="before")
+    @field_validator("estado_oportunidad", mode="before")
+    @classmethod
+    def reject_null_estado(cls, value: str | None) -> str | None:
+        # `null` is a valid way to clear telefono/email, but estado_oportunidad is
+        # NOT NULL in the database; an explicit null here must be a 422, not a 500
+        # IntegrityError from the ORM commit.
+        if value is None:
+            raise ValueError("estado_oportunidad no puede ser null")
+        return value
+
+    @field_validator("telefono", "telefono_secundario", mode="before")
     @classmethod
     def validate_telefono(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        value = value.strip()
-        if not value:
-            return None
-        if len(value) > 50 or not re.fullmatch(r"[0-9+()./ -]+", value):
-            raise ValueError("Teléfono no válido")
-        return value
+        return _validate_phone_value(value)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -101,6 +170,11 @@ class SancionadoUpdate(BaseModel):
         if len(value) > 200 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
             raise ValueError("Email no válido")
         return value
+
+    @field_validator("web", "linkedin_url", mode="before")
+    @classmethod
+    def validate_url(cls, value: str | None) -> str | None:
+        return _validate_url_value(value)
 
 
 class NotificacionOut(BaseModel):

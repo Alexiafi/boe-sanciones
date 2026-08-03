@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import logging
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.notificacion import Notificacion
 from app.models.sancionado import Sancionado
+from app.services.mailer import email_sending_available, enviar_email
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +45,19 @@ def create_inapp_notification(
 
 
 def send_email_digest(sancionados: list[Sancionado], fecha: str) -> bool:
-    """Send an email digest with new sanctions found for a given date."""
-    if not settings.smtp_user or not settings.notification_email_to:
-        logger.info("Email not configured, skipping digest")
+    """Send an email digest with new sanctions found for a given date.
+
+    Gated behind EMAIL_SENDING_ENABLED (see services/mailer.py) in addition to
+    having a recipient configured — the daily pipeline must never send a real
+    email unless sending has been explicitly turned on, even if SMTP
+    credentials happen to be present in .env for other testing.
+    """
+    available, reason = email_sending_available()
+    if not available:
+        logger.info("Email sending disabled, skipping digest: %s", reason)
+        return False
+    if not settings.notification_email_to:
+        logger.info("No digest recipient configured, skipping digest")
         return False
 
     if not sancionados:
@@ -91,17 +99,9 @@ def send_email_digest(sancionados: list[Sancionado], fecha: str) -> bool:
     """
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = settings.smtp_from or settings.smtp_user
-        msg["To"] = settings.notification_email_to
-        msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(msg)
-
+        enviar_email(
+            destino=settings.notification_email_to, asunto=subject, html=html_body, confirmar=True,
+        )
         logger.info("Email digest sent to %s", settings.notification_email_to)
         return True
 

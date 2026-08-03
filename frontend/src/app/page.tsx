@@ -1,160 +1,150 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { DashboardStats } from "@/lib/types";
-
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-    </div>
-  );
-}
+import { Card, CardTitle, Chip, EmptyState, ErrorState, LinkButton, PageHeader, Spinner, StatCard } from "@/components/ui";
+import { formatDateTime } from "@/lib/formatters";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(false);
     api.dashboard
       .stats()
       .then((data) => setStats(data as unknown as DashboardStats))
-      .catch(console.error)
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  if (!stats) {
-    return (
-      <div className="bg-card rounded-xl border border-border p-8 text-center">
-        <p className="text-muted-foreground">
-          No se pudo conectar con el servidor. Asegurate de que el backend esta corriendo.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    // Fetch-on-mount + a reusable retry handler (ErrorState's onRetry below)
+    // is the intended shape here, not an accidental render loop: `load`
+    // itself guards re-entrancy via loading/error state, so this doesn't
+    // cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Resumen general del sistema de sanciones BOE</p>
-      </div>
+      <PageHeader
+        title="Inicio"
+        description="Acceso directo al panel de multas, el histórico y la cartera de clientes."
+        actions={
+          <>
+            <LinkButton href="/sanciones">Panel de Multas</LinkButton>
+            <LinkButton href="/historial" variant="ghost">Historial</LinkButton>
+            <LinkButton href="/clientes" variant="ghost">Clientes</LinkButton>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total documentos" value={stats.total_documentos} />
-        <StatCard label="Total sancionados" value={stats.total_sancionados} />
-        <StatCard
-          label="Sancionados hoy"
-          value={stats.sancionados_hoy}
-          sub={`${stats.sancionados_semana} esta semana`}
-        />
-        <StatCard
-          label="Notificaciones"
-          value={stats.notificaciones_sin_leer}
-          sub="sin leer"
-        />
-      </div>
+      {loading && <Spinner />}
+      {!loading && error && <ErrorState onRetry={load} />}
+      {!loading && !error && stats && (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total documentos" value={stats.total_documentos} />
+            <StatCard label="Total sancionados" value={stats.total_sancionados} />
+            <StatCard label="Sancionados hoy" value={stats.sancionados_hoy} sub={`${stats.sancionados_semana} esta semana`} />
+            <StatCard label="Notificaciones" value={stats.notificaciones_sin_leer} sub="sin leer" />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Ultimo scraping</h2>
-          {stats.ultimo_scraping.fecha ? (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Fecha BOE</span>
-                <span className="font-medium">{stats.ultimo_scraping.fecha}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Estado</span>
-                <span
-                  className={`font-medium px-2 py-0.5 rounded-full text-xs ${
-                    stats.ultimo_scraping.status === "completed"
-                      ? "bg-green-100 text-green-800"
-                      : stats.ultimo_scraping.status === "failed"
-                        ? "bg-red-100 text-red-800"
-                        : "bg-yellow-100 text-yellow-800"
-                  }`}
-                >
-                  {stats.ultimo_scraping.status}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Extraidos</span>
-                <span className="font-medium">{stats.ultimo_scraping.extracted ?? 0}</span>
-              </div>
-              {stats.ultimo_scraping.finished_at && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Finalizado</span>
-                  <span className="font-medium">
-                    {new Date(stats.ultimo_scraping.finished_at).toLocaleString("es-ES")}
-                  </span>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card>
+              <CardTitle>Último scraping</CardTitle>
+              {stats.ultimo_scraping.fecha ? (
+                <div className="mt-4 space-y-2.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Fecha BOE</span>
+                    <span className="font-medium text-on-surface">{stats.ultimo_scraping.fecha}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-on-surface-variant">Estado</span>
+                    <Chip
+                      label={stats.ultimo_scraping.status ?? "—"}
+                      tone={
+                        stats.ultimo_scraping.status === "completed"
+                          ? "success"
+                          : stats.ultimo_scraping.status === "failed"
+                            ? "danger"
+                            : "warning"
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Extraídos</span>
+                    <span className="font-medium text-on-surface">{stats.ultimo_scraping.extracted ?? 0}</span>
+                  </div>
+                  {stats.ultimo_scraping.finished_at && (
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Finalizado</span>
+                      <span className="font-medium text-on-surface">{formatDateTime(stats.ultimo_scraping.finished_at)}</span>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <EmptyState title="Aún no se ha ejecutado ningún scraping." />
               )}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">Aun no se ha ejecutado ningun scraping.</p>
-          )}
-        </div>
+            </Card>
 
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Top organismos sancionadores</h2>
-          {stats.top_organismos.length > 0 ? (
-            <div className="space-y-3">
-              {stats.top_organismos.map((org) => (
-                <div key={org.nombre} className="flex justify-between items-center">
-                  <span className="text-sm truncate max-w-xs" title={org.nombre}>
-                    {org.nombre}
-                  </span>
-                  <span className="bg-primary/10 text-primary font-semibold text-xs px-2 py-0.5 rounded-full ml-2 shrink-0">
-                    {org.total}
-                  </span>
+            <Card>
+              <CardTitle>Top organismos sancionadores</CardTitle>
+              {stats.top_organismos.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {stats.top_organismos.map((org) => (
+                    <div key={org.nombre} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm text-on-surface" title={org.nombre}>
+                        {org.nombre}
+                      </span>
+                      <Chip label={String(org.total)} tone="primary" />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">Sin datos aun.</p>
-          )}
-        </div>
+              ) : (
+                <EmptyState title="Sin datos aún." />
+              )}
+            </Card>
 
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-          <h2 className="text-lg font-semibold mb-4">Infracciones por tipo</h2>
-          {stats.infracciones_por_tipo.length > 0 ? (
-            <div className="space-y-3">
-              {stats.infracciones_por_tipo.map((inf) => (
-                <div key={inf.tipo} className="flex justify-between items-center">
-                  <span className="text-sm capitalize">
-                    {inf.tipo?.replace("_", " ") || "Sin tipo"}
-                  </span>
-                  <span
-                    className={`font-semibold text-xs px-2 py-0.5 rounded-full ${
-                      inf.tipo === "muy_grave"
-                        ? "bg-red-100 text-red-800"
-                        : inf.tipo === "grave"
-                          ? "bg-orange-100 text-orange-800"
-                          : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {inf.total}
-                  </span>
+            <Card>
+              <CardTitle>Infracciones por tipo</CardTitle>
+              {stats.infracciones_por_tipo.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {stats.infracciones_por_tipo.map((inf) => (
+                    <div key={inf.tipo} className="flex items-center justify-between">
+                      <span className="text-sm capitalize text-on-surface">{inf.tipo?.replace("_", " ") || "Sin tipo"}</span>
+                      <Chip
+                        label={String(inf.total)}
+                        tone={inf.tipo === "muy_grave" ? "danger" : inf.tipo === "grave" ? "warning" : "neutral"}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">Sin datos aun.</p>
-          )}
-        </div>
-      </div>
+              ) : (
+                <EmptyState title="Sin datos aún." />
+              )}
+            </Card>
+
+            <Card>
+              <CardTitle>Accesos rápidos</CardTitle>
+              <div className="mt-4 flex flex-col gap-2">
+                <Link href="/consulta" className="text-sm text-primary hover:underline">
+                  Consulta por DNI/CIF →
+                </Link>
+                <Link href="/scraping" className="text-sm text-primary hover:underline">
+                  Lanzar operación / backfill →
+                </Link>
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
