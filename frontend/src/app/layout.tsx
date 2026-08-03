@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
   title: "BOE Sanciones",
@@ -47,7 +44,7 @@ function Sidebar() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={geist.variable}>
+    <html lang="es">
       <body className="antialiased">
         <Sidebar />
         <main className="ml-64 min-h-screen p-8">{children}</main>

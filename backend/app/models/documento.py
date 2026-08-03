@@ -31,6 +31,10 @@ class BoeDocumento(Base):
     url_pdf: Mapped[Optional[str]] = mapped_column(Text)
     raw_sumario_item: Mapped[Optional[dict]] = mapped_column(JSONB)
     source: Mapped[Optional[str]] = mapped_column(String(50), default="boe_api_sumario")
+    extraction_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    extraction_attempted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    extraction_error: Mapped[Optional[str]] = mapped_column(Text)
+    extractor_version: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

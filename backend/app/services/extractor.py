@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 from typing import Literal
 
 from openai import OpenAI
@@ -82,7 +83,7 @@ class AfectadoExtraido(BaseModel):
     base_legal: str | None = None
     organismo_emisor: str | None = None
     dominio_material: str | None = None
-    fecha_resolucion: str | None = None
+    fecha_resolucion: date | None = None
     observaciones: str | None = None
 
 

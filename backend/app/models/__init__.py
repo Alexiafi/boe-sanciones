@@ -6,8 +6,10 @@ from app.models.seguimiento import Seguimiento
 
 __all__ = [
     "BoeDocumento",
+    "CodigoOportunidadContador",
     "Sancionado",
     "Seguimiento",
     "Notificacion",
     "ScrapingRun",
 ]
+from app.models.codigo_oportunidad import CodigoOportunidadContador

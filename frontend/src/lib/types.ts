@@ -1,11 +1,16 @@
 export interface Sancionado {
   id: number;
   boe_document_id: number;
+  codigo: string;
+  estado_oportunidad: "nueva" | "revisada" | "contactada" | "descartada" | "cliente";
   nombre: string | null;
   tipo_persona: string | null;
   identificador: string | null;
   tipo_identificador: string | null;
   direccion: string | null;
+  localidad: string | null;
+  provincia: string | null;
+  codigo_postal: string | null;
   telefono: string | null;
   email: string | null;
   matricula_coche: string | null;
@@ -14,12 +19,17 @@ export interface Sancionado {
   razon_sancion: string | null;
   expediente: string | null;
   estado_publicacion: string | null;
+  tipo_procedimiento: string | null;
+  importe_deuda_eur: number | null;
   plazo_notificacion: string | null;
   plazo_alegaciones: string | null;
   plazo_recurso: string | null;
+  plazo_pago_voluntario: string | null;
   base_legal: string | null;
   organismo_emisor: string | null;
   dominio_material: string | null;
+  fecha_resolucion: string | null;
+  observaciones: string | null;
   created_at: string;
   boe_id: string | null;
   fecha_publicacion: string | null;
@@ -56,6 +66,10 @@ export interface ScrapingRun {
   extracted: number | null;
   errors: number | null;
   error_log: string | null;
+  extraction_requested: boolean;
+  extraction_provider: string | null;
+  extraction_limit: number | null;
+  extraction_attempts: number;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
