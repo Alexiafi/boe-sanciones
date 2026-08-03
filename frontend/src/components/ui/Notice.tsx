@@ -25,7 +25,7 @@ export function Notice({
   return (
     <div
       role={tone === "danger" || tone === "warning" ? "alert" : "status"}
-      className={cn("rounded-lg px-4 py-3 text-sm leading-relaxed", toneClasses[tone], className)}
+      className={cn("rounded-xl border border-current/10 px-4 py-3.5 text-sm leading-relaxed", toneClasses[tone], className)}
     >
       {children}
     </div>

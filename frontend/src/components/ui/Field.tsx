@@ -10,8 +10,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const controlClasses =
-  "w-full rounded-lg bg-surface-container-high px-3 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant " +
-  "outline-none transition-colors focus:bg-surface-container-lowest focus:ghost-border focus:ring-2 focus:ring-primary/40";
+  "w-full min-h-11 rounded-xl border border-outline-variant/65 bg-surface-bright px-3.5 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/70 " +
+  "outline-none transition-all hover:border-outline focus:border-primary/40 focus:bg-white focus:ring-4 focus:ring-secondary-container/70";
 
 /** Wraps a single Input/Select/Textarea with a proper <label htmlFor>,
  * auto-generating and wiring a matching id — fixes the pre-redesign pages'
@@ -29,7 +29,7 @@ export function Field({
   const control = isValidElement(children) ? cloneElement(children, { id }) : children;
   return (
     <label className="block text-sm" htmlFor={id}>
-      <span className="mb-1.5 block text-xs font-medium uppercase tracking-[0.05em] text-on-surface-variant">
+      <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.11em] text-on-surface-variant">
         {label}
       </span>
       {control}

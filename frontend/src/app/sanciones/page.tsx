@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { CalendarRange, FileCheck2, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import type { PaginatedResponse, Sancionado } from "@/lib/types";
 import {
@@ -76,6 +77,23 @@ export default function SancionesPage() {
         title="Panel de Multas"
         description="Publicaciones BOE de los últimos 30 días. Consultar esta lista no inicia scraping."
       />
+
+      {data && (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex items-center gap-4 rounded-2xl border border-outline-variant/55 bg-white p-5 shadow-ambient">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-tertiary-fixed text-tertiary-container"><ShieldAlert className="h-5 w-5" /></span>
+            <div><p className="text-[9px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">Oportunidades</p><p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-primary">{data.total.toLocaleString("es-ES")}</p></div>
+          </div>
+          <div className="flex items-center gap-4 rounded-2xl border border-outline-variant/55 bg-white p-5 shadow-ambient">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-secondary-container text-primary"><FileCheck2 className="h-5 w-5" /></span>
+            <div><p className="text-[9px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">En esta vista</p><p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-primary">{data.items.length}</p></div>
+          </div>
+          <div className="flex items-center gap-4 rounded-2xl border border-outline-variant/55 bg-white p-5 shadow-ambient">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-success-container text-success"><CalendarRange className="h-5 w-5" /></span>
+            <div><p className="text-[9px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">Ventana activa</p><p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-primary">30 días</p></div>
+          </div>
+        </div>
+      )}
 
       <Card className="mb-6">
         <form
