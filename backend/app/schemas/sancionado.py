@@ -2,17 +2,25 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel
+import re
+from typing import Literal
+
+from pydantic import BaseModel, field_validator
 
 
 class SancionadoOut(BaseModel):
     id: int
     boe_document_id: int
+    codigo: str
+    estado_oportunidad: str
     nombre: str | None = None
     tipo_persona: str | None = None
     identificador: str | None = None
     tipo_identificador: str | None = None
     direccion: str | None = None
+    localidad: str | None = None
+    provincia: str | None = None
+    codigo_postal: str | None = None
     telefono: str | None = None
     email: str | None = None
     matricula_coche: str | None = None
@@ -21,12 +29,17 @@ class SancionadoOut(BaseModel):
     razon_sancion: str | None = None
     expediente: str | None = None
     estado_publicacion: str | None = None
+    tipo_procedimiento: str | None = None
+    importe_deuda_eur: float | None = None
     plazo_notificacion: str | None = None
     plazo_alegaciones: str | None = None
     plazo_recurso: str | None = None
+    plazo_pago_voluntario: str | None = None
     base_legal: str | None = None
     organismo_emisor: str | None = None
     dominio_material: str | None = None
+    fecha_resolucion: date | None = None
+    observaciones: str | None = None
     created_at: datetime
 
     # Denormalized from documento for list views
@@ -58,6 +71,38 @@ class SeguimientoCreate(BaseModel):
     estado: str = "pendiente"
 
 
+class SancionadoUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    estado_oportunidad: Literal["nueva", "revisada", "contactada", "descartada"] | None = None
+    telefono: str | None = None
+    email: str | None = None
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def validate_telefono(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        if len(value) > 50 or not re.fullmatch(r"[0-9+()./ -]+", value):
+            raise ValueError("Teléfono no válido")
+        return value
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        if len(value) > 200 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
+            raise ValueError("Email no válido")
+        return value
+
+
 class NotificacionOut(BaseModel):
     id: int
     tipo: str
@@ -83,6 +128,10 @@ class ScrapingRunOut(BaseModel):
     extracted: int | None = None
     errors: int | None = None
     error_log: str | None = None
+    extraction_requested: bool = False
+    extraction_provider: str | None = None
+    extraction_limit: int | None = None
+    extraction_attempts: int = 0
     started_at: datetime | None = None
     finished_at: datetime | None = None
     created_at: datetime
@@ -93,6 +142,7 @@ class ScrapingRunOut(BaseModel):
 class ScrapingTrigger(BaseModel):
     fecha: str  # YYYY-MM-DD
     force: bool = False
+    permitir_extraccion_pago: bool = False
 
 
 class PaginatedResponse(BaseModel):

@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +13,10 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = ""
     openai_model: str = "gpt-5.4-2026-03-05"
+    # Paid extraction is intentionally opt-in. A manual request must also set
+    # ``permitir_extraccion_pago`` before the pipeline will call OpenAI.
+    openai_extraction_enabled: bool = False
+    openai_extraction_max_documents_per_run: int = Field(default=1, ge=0)
 
     # Email
     smtp_host: str = "smtp.gmail.com"
@@ -27,6 +32,7 @@ class Settings(BaseSettings):
 
     # App
     scraping_interval_hours: int = 12
+    gap_detection_max_days: int = Field(default=30, ge=1)
     log_level: str = "INFO"
 
     model_config = {"env_file": ".env", "extra": "ignore"}

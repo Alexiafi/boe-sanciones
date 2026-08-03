@@ -13,6 +13,8 @@ export default function ScrapingPage() {
   });
   const [triggering, setTriggering] = useState(false);
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
+  const [permitirExtraccionPago, setPermitirExtraccionPago] = useState(false);
+  const [gaps, setGaps] = useState<string[]>([]);
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -27,6 +29,7 @@ export default function ScrapingPage() {
 
   useEffect(() => {
     fetchRuns();
+    api.scraping.gaps().then((result) => setGaps(result.gaps)).catch(console.error);
     const interval = setInterval(fetchRuns, 10000);
     return () => clearInterval(interval);
   }, [fetchRuns]);
@@ -36,7 +39,7 @@ export default function ScrapingPage() {
     setTriggering(true);
     setTriggerResult(null);
     try {
-      const res = await api.scraping.trigger(fecha);
+      const res = await api.scraping.trigger(fecha, { permitir_extraccion_pago: permitirExtraccionPago });
       setTriggerResult(
         `Tarea encolada (ID: ${(res as Record<string, string>).task_id}). Se procesara en segundo plano.`
       );
@@ -78,11 +81,21 @@ export default function ScrapingPage() {
             {triggering ? "Encolando..." : "Ejecutar"}
           </button>
         </form>
+        <label className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={permitirExtraccionPago} onChange={(event) => setPermitirExtraccionPago(event.target.checked)} className="mt-1" />
+          <span>Permitir extracción OpenAI para esta ejecución manual. Puede generar coste y está limitada por configuración.</span>
+        </label>
         {triggerResult && (
           <p className={`mt-3 text-sm ${triggerResult.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
             {triggerResult}
           </p>
         )}
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-6 shadow-sm mb-6">
+        <h2 className="text-lg font-semibold">Huecos detectados</h2>
+        <p className="text-sm text-muted-foreground mt-1">Fechas sin una ejecución completada; esta lista no inicia ni programa scraping.</p>
+        <p className="mt-3 text-sm">{gaps.length ? gaps.join(", ") : "No hay huecos en los últimos 30 días."}</p>
       </div>
 
       {/* Runs history */}

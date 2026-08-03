@@ -25,6 +25,11 @@ export const api = {
       return fetchAPI<Record<string, unknown>>(`/api/sanciones?${qs}`);
     },
     get: (id: number) => fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}`),
+    update: (id: number, data: { estado_oportunidad?: string; telefono?: string | null; email?: string | null }) =>
+      fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     addSeguimiento: (id: number, data: { nota?: string; estado: string }) =>
       fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}/seguimientos`, {
         method: "POST",
@@ -52,13 +57,15 @@ export const api = {
   },
 
   scraping: {
-    trigger: (fecha: string) =>
+    trigger: (fecha: string, options?: { force?: boolean; permitir_extraccion_pago?: boolean }) =>
       fetchAPI<Record<string, unknown>>("/api/scraping/trigger", {
         method: "POST",
-        body: JSON.stringify({ fecha }),
+        body: JSON.stringify({ fecha, ...options }),
       }),
     runs: () => fetchAPI<Record<string, unknown>[]>("/api/scraping/runs"),
     status: (taskId: string) =>
       fetchAPI<Record<string, unknown>>(`/api/scraping/status/${taskId}`),
+    gaps: (days = 30) =>
+      fetchAPI<{ desde: string; hasta: string; days: number; gaps: string[]; note: string }>(`/api/scraping/gaps?days=${days}`),
   },
 };
