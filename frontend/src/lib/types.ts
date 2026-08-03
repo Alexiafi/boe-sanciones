@@ -31,12 +31,110 @@ export interface Sancionado {
   fecha_resolucion: string | null;
   observaciones: string | null;
   created_at: string;
+
+  // Contact enrichment (session 2)
+  web: string | null;
+  linkedin_url: string | null;
+  telefono_secundario: string | null;
+  contacto_estado: "pendiente" | "encontrado" | "no_encontrado" | "manual";
+  contacto_fuente: string | null;
+  contacto_url: string | null;
+  contacto_confidence: number | null;
+  contacto_actualizado_at: string | null;
+  cliente_id: number | null;
+
   boe_id: string | null;
   fecha_publicacion: string | null;
   titulo_documento: string | null;
   url_html: string | null;
   url_documento: string | null;
   seguimientos?: Seguimiento[];
+}
+
+export interface EnriquecimientoIntento {
+  id: number;
+  sancionado_id: number;
+  proveedor: string;
+  consulta: string | null;
+  resultado: "encontrado" | "no_encontrado" | "error" | "omitido";
+  url_origen: string | null;
+  confidence: number | null;
+  evidencia: string | null;
+  coste_estimado_eur: number | null;
+  duracion_ms: number | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface Cliente {
+  id: number;
+  codigo: string;
+  nombre_razon_social: string;
+  tipo_persona: string | null;
+  cif_nif: string | null;
+  dni_nie: string | null;
+  matriculas: string[];
+  persona_contacto: string | null;
+  telefono: string | null;
+  email: string | null;
+  direccion_fiscal: string | null;
+  localidad: string | null;
+  provincia: string | null;
+  codigo_postal: string | null;
+  web: string | null;
+  sector: string | null;
+  estado_cliente: "activo" | "inactivo";
+  fecha_contrato: string | null;
+  precio_contrato: number | null;
+  sancion_origen_id: number;
+  created_at: string;
+  deuda_pendiente_eur: number;
+}
+
+export interface SancionVinculada {
+  id: number;
+  codigo: string;
+  fecha_publicacion: string | null;
+  tipo_infraccion: string | null;
+  importe_multa_eur: number | null;
+  importe_deuda_eur: number | null;
+  url_documento: string | null;
+}
+
+export interface NotaCliente {
+  id: number;
+  cliente_id: number;
+  texto: string;
+  autor: string | null;
+  created_at: string;
+}
+
+export interface ActividadCliente {
+  id: number;
+  cliente_id: number;
+  tipo: "llamada" | "email" | "pago" | "nota" | "conversion" | "sistema";
+  titulo: string;
+  detalle: string | null;
+  datos: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AccionAgendada {
+  id: number;
+  cliente_id: number;
+  tipo: "llamada" | "email" | "tarea";
+  titulo: string;
+  fecha_programada: string | null;
+  estado: "pendiente" | "hecha" | "cancelada";
+  notas: string | null;
+  created_at: string;
+}
+
+export interface ClienteDetail extends Cliente {
+  sanciones: SancionVinculada[];
+  notas: NotaCliente[];
+  actividades: ActividadCliente[];
+  acciones: AccionAgendada[];
 }
 
 export interface Seguimiento {

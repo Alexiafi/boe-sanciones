@@ -3,8 +3,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.clientes import router as clientes_router
 from app.api.dashboard import router as dashboard_router
 from app.api.documentos import router as documentos_router
+from app.api.enriquecimiento import router as enriquecimiento_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.sanciones import router as sanciones_router
 from app.api.scraping import router as scraping_router
@@ -28,6 +30,8 @@ app.include_router(sanciones_router)
 app.include_router(documentos_router)
 app.include_router(scraping_router)
 app.include_router(notificaciones_router)
+app.include_router(enriquecimiento_router)
+app.include_router(clientes_router)
 
 
 @app.get("/api/health")

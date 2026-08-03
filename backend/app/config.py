@@ -35,6 +35,26 @@ class Settings(BaseSettings):
     gap_detection_max_days: int = Field(default=30, ge=1)
     log_level: str = "INFO"
 
+    # Contact enrichment (session 2). Disabled and provider-less by default: no
+    # code path may reach the network unless both ``enrichment_enabled`` is true
+    # AND a concrete provider is configured. Batch is a second, independent gate
+    # on top of that (see ENRICHMENT_BATCH_ENABLED).
+    enrichment_enabled: bool = False
+    enrichment_mode: str = "on_demand"  # on_demand | batch
+    enrichment_search_provider: str = "none"  # none|fixture|searxng|tavily|serper
+    searxng_url: str = ""
+    tavily_api_key: str = ""
+    serper_api_key: str = ""
+    enrichment_min_confidence: float = Field(default=0.6, ge=0, le=1)
+    enrichment_max_pages_per_attempt: int = Field(default=5, ge=1)
+    enrichment_http_timeout: float = Field(default=10.0, gt=0)
+    enrichment_rate_limit_per_domain_s: float = Field(default=2.0, ge=0)
+    enrichment_cache_ttl_days: int = Field(default=30, ge=1)
+    enrichment_respect_robots: bool = True
+    enrichment_batch_enabled: bool = False
+    enrichment_batch_max: int = Field(default=10, ge=1)
+    enrichment_use_llm_disambiguation: bool = False
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

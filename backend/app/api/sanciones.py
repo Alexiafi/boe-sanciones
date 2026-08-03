@@ -3,19 +3,34 @@
 from __future__ import annotations
 
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.cliente import Cliente
 from app.models.documento import BoeDocumento
+from app.models.enriquecimiento import EnriquecimientoIntento
 from app.models.sancionado import Sancionado
 from app.models.seguimiento import Seguimiento
-from app.schemas.sancionado import SancionadoDetail, SancionadoOut, SancionadoUpdate, SeguimientoCreate, SeguimientoOut
+from app.schemas.cliente import ClienteOut
+from app.schemas.sancionado import (
+    CONTACT_FIELDS,
+    EnriquecimientoIntentoOut,
+    SancionadoDetail,
+    SancionadoOut,
+    SancionadoUpdate,
+    SeguimientoCreate,
+    SeguimientoOut,
+)
+from app.services.clientes import convertir_oportunidad, deuda_pendiente_eur
+from app.services.enrichment.service import enrichment_available
+from app.tasks.enrichment import enrich_sancionado_task
 
 BOE_BASE = "https://www.boe.es"
 router = APIRouter(prefix="/api/sanciones", tags=["sanciones"])
@@ -129,6 +144,29 @@ async def get_sancion(sancionado_id: int, db: AsyncSession = Depends(get_db)):
     return detail
 
 
+def _apply_manual_contact_marking(sancionado: Sancionado, data: SancionadoUpdate) -> None:
+    """Whenever a PATCH touches a contact field, (re)derive contacto_estado.
+
+    A non-empty telefono/email after the edit means a human just confirmed the
+    contact by hand: mark it "manual" so automatic enrichment never overwrites
+    it. If the edit clears both core contact fields, release that lock back to
+    "pendiente" so the opportunity is eligible for enrichment again.
+    """
+    if not CONTACT_FIELDS & data.model_fields_set:
+        return
+    if sancionado.telefono or sancionado.email:
+        sancionado.contacto_estado = "manual"
+        sancionado.contacto_fuente = "manual"
+        sancionado.contacto_confidence = 1.0
+        sancionado.contacto_actualizado_at = datetime.now(timezone.utc)
+    else:
+        sancionado.contacto_estado = "pendiente"
+        sancionado.contacto_fuente = None
+        sancionado.contacto_url = None
+        sancionado.contacto_confidence = None
+        sancionado.contacto_actualizado_at = None
+
+
 @router.patch("/{sancionado_id}", response_model=SancionadoDetail)
 async def update_sancion(sancionado_id: int, data: SancionadoUpdate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Sancionado).options(selectinload(Sancionado.documento), selectinload(Sancionado.seguimientos)).where(Sancionado.id == sancionado_id))
@@ -137,6 +175,7 @@ async def update_sancion(sancionado_id: int, data: SancionadoUpdate, db: AsyncSe
         raise HTTPException(status_code=404, detail="Sancionado no encontrado")
     for field in data.model_fields_set:
         setattr(sancionado, field, getattr(data, field))
+    _apply_manual_contact_marking(sancionado, data)
     await db.commit()
     refreshed = (await db.execute(
         select(Sancionado)
@@ -163,3 +202,55 @@ async def add_seguimiento(sancionado_id: int, data: SeguimientoCreate, db: Async
 async def list_seguimientos(sancionado_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Seguimiento).where(Seguimiento.sancionado_id == sancionado_id).order_by(Seguimiento.created_at.desc()))
     return [SeguimientoOut.model_validate(item) for item in result.scalars().all()]
+
+
+@router.post("/{sancionado_id}/enriquecer", response_model=dict)
+async def enrich_sancion(sancionado_id: int, db: AsyncSession = Depends(get_db)):
+    """Queue a single on-demand enrichment attempt. Same cost-gate pattern as
+    the sesion 1 scraping trigger: a clear 409 if disabled/unconfigured, never
+    a silent no-op."""
+    exists = (await db.execute(select(Sancionado.id).where(Sancionado.id == sancionado_id))).scalar_one_or_none()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Sancionado no encontrado")
+    available, reason = enrichment_available()
+    if not available:
+        raise HTTPException(status_code=409, detail=reason)
+    task = enrich_sancionado_task.delay(sancionado_id)
+    return {"task_id": task.id, "status": "queued"}
+
+
+@router.get("/{sancionado_id}/enriquecimiento", response_model=list[EnriquecimientoIntentoOut])
+async def list_enrichment_attempts(sancionado_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(EnriquecimientoIntento)
+        .where(EnriquecimientoIntento.sancionado_id == sancionado_id)
+        .order_by(EnriquecimientoIntento.created_at.desc())
+    )
+    return [EnriquecimientoIntentoOut.model_validate(item) for item in result.scalars().all()]
+
+
+@router.post("/{sancionado_id}/convertir", response_model=dict)
+async def convertir_a_cliente(sancionado_id: int, db: AsyncSession = Depends(get_db)):
+    """Convert an opportunity into a client. Idempotent: converting the same
+    opportunity twice returns the same Cliente with ``created: false`` the
+    second time, never a duplicate — see services/clientes.convertir_oportunidad
+    for the in-request check and the ``sancion_origen_id`` unique constraint
+    that backs it up under concurrent requests."""
+    result = await db.execute(select(Sancionado).where(Sancionado.id == sancionado_id))
+    sancionado = result.scalar_one_or_none()
+    if not sancionado:
+        raise HTTPException(status_code=404, detail="Sancionado no encontrado")
+    try:
+        cliente, created = await convertir_oportunidad(db, sancionado)
+        await db.commit()
+    except IntegrityError:
+        # Two concurrent requests raced past the pre-check in convertir_oportunidad;
+        # the unique constraint on sancion_origen_id is the real guarantee here.
+        await db.rollback()
+        cliente = (
+            await db.execute(select(Cliente).where(Cliente.sancion_origen_id == sancionado_id))
+        ).scalar_one()
+        created = False
+    out = ClienteOut.model_validate(cliente)
+    out.deuda_pendiente_eur = await deuda_pendiente_eur(db, cliente.id)
+    return {"cliente": out.model_dump(), "created": created}

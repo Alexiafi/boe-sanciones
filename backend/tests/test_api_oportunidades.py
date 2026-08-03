@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import os
 
 import pytest
@@ -11,6 +11,7 @@ from app.database import SyncSessionLocal
 from app.main import app
 from app.models.documento import BoeDocumento
 from app.models.sancionado import Sancionado
+from app.models.scraping_run import ScrapingRun
 
 pytestmark = pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL_SYNC"), reason="requires ephemeral PostgreSQL")
 
@@ -50,4 +51,64 @@ def test_filters_default_range_and_safe_patch(clean_database):
         assert forbidden.status_code == 422
         forbidden_field = client.patch(f"/api/sanciones/{recent.id}", json={"nombre": "No permitido"})
         assert forbidden_field.status_code == 422
+        # Regression: an explicit null used to slip past validation and crash the
+        # NOT NULL column with a 500 IntegrityError. It must be a 422 instead.
+        null_estado = client.patch(f"/api/sanciones/{recent.id}", json={"estado_oportunidad": None})
+        assert null_estado.status_code == 422
+        # null remains valid for telefono/email: it is how contact gets cleared.
+        cleared = client.patch(f"/api/sanciones/{recent.id}", json={"telefono": None})
+        assert cleared.status_code == 200
+        assert cleared.json()["telefono"] is None
+    session.close()
+
+
+@pytest.mark.integration
+def test_manual_contact_patch_marks_and_releases_manual_state(clean_database):
+    session = SyncSessionLocal()
+    today = date.today()
+    item = _opportunity(session, "5", today)
+    session.commit()
+    item_id = item.id
+    session.close()
+
+    with TestClient(app) as client:
+        detail = client.get(f"/api/sanciones/{item_id}").json()
+        assert detail["contacto_estado"] == "pendiente"
+
+        patched = client.patch(f"/api/sanciones/{item_id}", json={"telefono": "611222333"})
+        assert patched.status_code == 200
+        body = patched.json()
+        assert body["contacto_estado"] == "manual"
+        assert body["contacto_fuente"] == "manual"
+        assert body["contacto_confidence"] == 1.0
+
+        # Editing a field unrelated to contact must not touch contacto_estado.
+        untouched = client.patch(f"/api/sanciones/{item_id}", json={"estado_oportunidad": "revisada"})
+        assert untouched.json()["contacto_estado"] == "manual"
+
+        # Clearing every contact field releases the manual lock so automatic
+        # enrichment is eligible to run again.
+        cleared = client.patch(f"/api/sanciones/{item_id}", json={"telefono": None})
+        assert cleared.json()["contacto_estado"] == "pendiente"
+        assert cleared.json()["contacto_fuente"] is None
+
+
+@pytest.mark.integration
+def test_gaps_endpoint_is_read_only_and_bounded(clean_database):
+    session = SyncSessionLocal()
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    session.add(ScrapingRun(fecha_boe=today, status="completed", started_at=datetime.now(timezone.utc)))
+    # A failed run must not count as "covered": the gap for yesterday stays open.
+    session.add(ScrapingRun(fecha_boe=yesterday, status="failed", started_at=datetime.now(timezone.utc)))
+    session.commit()
+    with TestClient(app) as client:
+        response = client.get("/api/scraping/gaps", params={"days": 3})
+        assert response.status_code == 200
+        body = response.json()
+        assert today.isoformat() not in body["gaps"]
+        assert yesterday.isoformat() in body["gaps"]
+
+        too_many = client.get("/api/scraping/gaps", params={"days": 999})
+        assert too_many.status_code == 422
     session.close()

@@ -26,10 +26,12 @@ def test_migrations_reach_opportunity_head(clean_database):
     inspector = inspect(sync_engine)
     assert {"boe_documentos", "sancionados", "codigo_oportunidad_contadores", "alembic_version"}.issubset(set(inspector.get_table_names()))
     columns = {column["name"] for column in inspector.get_columns("sancionados")}
-    assert {"codigo", "estado_oportunidad", "origen_clave", "importe_deuda_eur"}.issubset(columns)
+    assert {"codigo", "estado_oportunidad", "origen_clave", "importe_deuda_eur", "contacto_estado"}.issubset(columns)
     revisions = Path("alembic/versions")
     assert (revisions / "0001_legacy_baseline.py").exists()
     assert (revisions / "0002_opportunity_core.py").exists()
+    assert (revisions / "0003_enrichment_core.py").exists()
+    assert (revisions / "0004_clientes_crm.py").exists()
 
 
 @pytest.mark.integration
@@ -64,7 +66,7 @@ def test_bootstrap_empty_and_legacy_schema_preserves_duplicate_rows():
         rows = connection.execute(
             text("SELECT codigo, origen_clave, estado_oportunidad FROM sancionados ORDER BY id")
         ).mappings().all()
-    assert revision == "0002_opportunity_core"
+    assert revision == "0004_clientes_crm"
     assert [row["codigo"] for row in rows] == ["OP-2025-000001", "OP-2025-000002"]
     assert len({row["origen_clave"] for row in rows}) == 2
     assert {row["estado_oportunidad"] for row in rows} == {"nueva"}
