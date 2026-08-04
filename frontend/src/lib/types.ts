@@ -36,7 +36,11 @@ export interface Sancionado {
   web: string | null;
   linkedin_url: string | null;
   telefono_secundario: string | null;
-  contacto_estado: "pendiente" | "encontrado" | "no_encontrado" | "manual";
+  facebook_url: string | null;
+  instagram_url: string | null;
+  twitter_url: string | null;
+  contacto_detalle: Record<string, { valor: string; fuente_url: string | null; confidence: number }> | null;
+  contacto_estado: "pendiente" | "encontrado" | "no_encontrado" | "manual" | "sin_datos";
   contacto_fuente: string | null;
   contacto_url: string | null;
   contacto_confidence: number | null;
@@ -56,7 +60,7 @@ export interface EnriquecimientoIntento {
   sancionado_id: number;
   proveedor: string;
   consulta: string | null;
-  resultado: "encontrado" | "no_encontrado" | "error" | "omitido";
+  resultado: "encontrado" | "no_encontrado" | "error" | "omitido" | "sin_datos";
   url_origen: string | null;
   confidence: number | null;
   evidencia: string | null;

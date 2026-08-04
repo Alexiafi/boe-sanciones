@@ -63,6 +63,7 @@ const MAPAS: Record<Dominio, Record<string, { label: string; tone: ChipTone }>> 
     encontrado: { label: "Encontrado", tone: "success" },
     no_encontrado: { label: "No encontrado", tone: "warning" },
     manual: { label: "Manual", tone: "info" },
+    sin_datos: { label: "Sin datos", tone: "neutral" },
   },
   documento_estado: {
     generado: { label: "Generado", tone: "neutral" },

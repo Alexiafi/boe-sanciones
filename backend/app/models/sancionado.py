@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,6 +55,13 @@ class Sancionado(Base):
     web: Mapped[Optional[str]] = mapped_column(String(500))
     linkedin_url: Mapped[Optional[str]] = mapped_column(String(500))
     telefono_secundario: Mapped[Optional[str]] = mapped_column(String(50))
+    facebook_url: Mapped[Optional[str]] = mapped_column(String(500))
+    instagram_url: Mapped[Optional[str]] = mapped_column(String(500))
+    twitter_url: Mapped[Optional[str]] = mapped_column(String(500))
+    # Per-field provenance from automatic enrichment:
+    # {campo: {"valor", "fuente_url", "confidence"}} — lets the UI show where
+    # each phone/email/social link came from instead of a single global source.
+    contacto_detalle: Mapped[Optional[dict]] = mapped_column(JSONB)
     contacto_estado: Mapped[str] = mapped_column(String(20), default="pendiente", nullable=False)
     contacto_fuente: Mapped[Optional[str]] = mapped_column(String(50))
     contacto_url: Mapped[Optional[str]] = mapped_column(String(500))

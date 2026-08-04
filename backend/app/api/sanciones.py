@@ -35,6 +35,8 @@ from app.tasks.enrichment import enrich_sancionado_task
 BOE_BASE = "https://www.boe.es"
 router = APIRouter(prefix="/api/sanciones", tags=["sanciones"])
 
+_OPPORTUNITY_STATE = "nueva|revisada|contactada|descartada|cliente"
+
 
 def _build_url_documento(doc: BoeDocumento) -> str:
     if doc.url_html:
@@ -72,6 +74,7 @@ async def list_sanciones(
     cuantia_min: Decimal | None = Query(None, ge=0),
     cuantia_max: Decimal | None = Query(None, ge=0),
     solo_con_contacto: bool | None = None,
+    contacto_estado: str | None = Query(None, pattern="^(pendiente|encontrado|no_encontrado|manual|sin_datos)$"),
     estado: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -109,6 +112,8 @@ async def list_sanciones(
         conditions.append(has_contact)
     elif solo_con_contacto is False:
         conditions.append(~has_contact)
+    if contacto_estado:
+        conditions.append(Sancionado.contacto_estado == contacto_estado)
     # Compatibility with the pre-session endpoint: this remains a historial
     # filter and does not replace the opportunity state.
     if estado:
@@ -208,15 +213,25 @@ async def list_seguimientos(sancionado_id: int, db: AsyncSession = Depends(get_d
 async def enrich_sancion(sancionado_id: int, db: AsyncSession = Depends(get_db)):
     """Queue a single on-demand enrichment attempt. Same cost-gate pattern as
     the sesion 1 scraping trigger: a clear 409 if disabled/unconfigured, never
-    a silent no-op."""
-    exists = (await db.execute(select(Sancionado.id).where(Sancionado.id == sancionado_id))).scalar_one_or_none()
-    if not exists:
+    a silent no-op.
+
+    Also doubles as the "I've looked at this opportunity" marker: the user
+    reaching for this button is exactly the moment they start working a lead,
+    so a still-"nueva" opportunity advances to "revisada" right away — this is
+    what lets the list filter/URL-persistence surface "leads already touched"
+    without a separate flag.
+    """
+    sancionado = (await db.execute(select(Sancionado).where(Sancionado.id == sancionado_id))).scalar_one_or_none()
+    if not sancionado:
         raise HTTPException(status_code=404, detail="Sancionado no encontrado")
     available, reason = enrichment_available()
     if not available:
         raise HTTPException(status_code=409, detail=reason)
+    if sancionado.estado_oportunidad == "nueva":
+        sancionado.estado_oportunidad = "revisada"
+        await db.commit()
     task = enrich_sancionado_task.delay(sancionado_id)
-    return {"task_id": task.id, "status": "queued"}
+    return {"task_id": task.id, "status": "queued", "estado_oportunidad": sancionado.estado_oportunidad}
 
 
 @router.get("/{sancionado_id}/enriquecimiento", response_model=list[EnriquecimientoIntentoOut])

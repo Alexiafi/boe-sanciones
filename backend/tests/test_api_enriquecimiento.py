@@ -63,6 +63,37 @@ def test_enrich_endpoint_404_for_missing_sancionado(clean_database):
 
 
 @pytest.mark.integration
+def test_enrich_endpoint_marks_nueva_as_revisada(monkeypatch, clean_database):
+    """Clicking "Enriquecer contacto" is the user's "I've started working this
+    lead" signal: a still-"nueva" opportunity must advance to "revisada" right
+    away, without waiting for the (broker-dependent) enrichment task itself."""
+    import app.api.sanciones as sanciones_api
+
+    monkeypatch.setattr(sanciones_api, "enrichment_available", lambda: (True, None))
+    monkeypatch.setattr(sanciones_api.enrich_sancionado_task, "delay", lambda *_: type("Task", (), {"id": "fake-task-id"})())
+
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, "3")
+    session.commit()
+    sancionado_id = sancionado.id
+    session.close()
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/sanciones/{sancionado_id}/enriquecer")
+        assert response.status_code == 200
+        assert response.json()["estado_oportunidad"] == "revisada"
+
+        detail = client.get(f"/api/sanciones/{sancionado_id}").json()
+        assert detail["estado_oportunidad"] == "revisada"
+
+        # A second click on an opportunity already past "nueva" must not
+        # regress its stage back down.
+        client.patch(f"/api/sanciones/{sancionado_id}", json={"estado_oportunidad": "contactada"})
+        again = client.post(f"/api/sanciones/{sancionado_id}/enriquecer")
+        assert again.json()["estado_oportunidad"] == "contactada"
+
+
+@pytest.mark.integration
 def test_batch_endpoint_requires_confirmation(clean_database):
     with TestClient(app) as client:
         response = client.post("/api/enriquecimiento/lote", json={"confirmar": False})

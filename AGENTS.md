@@ -40,8 +40,9 @@ docker compose up -d --build postgres migrate backend frontend
   docker compose exec backend alembic revision --autogenerate -m "..."
   docker compose exec backend alembic upgrade head
   ```
-  Current head: `0006_documentos_comerciales`. Chain: `0001_legacy_baseline` → `0002_opportunity_core` →
-  `0003_enrichment_core` → `0004_clientes_crm` → `0005_historico_core` → `0006_documentos_comerciales`.
+ Current head: `0007_contacto_detallado`. Chain: `0001_legacy_baseline` → `0002_opportunity_core` →
+ `0003_enrichment_core` → `0004_clientes_crm` → `0005_historico_core` → `0006_documentos_comerciales` →
+ `0007_contacto_detallado`.
 - **Celery pipelines**:
   - `app.tasks.scraping.run_daily_scraping` — BOE sumario → rule-based classifier → body verification →
     OpenAI structured extraction (gated) → TEU scraping → free daily accumulation into the historical index.

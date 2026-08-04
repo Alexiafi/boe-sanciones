@@ -44,7 +44,7 @@ class SearchProvider(Protocol):
 class EnrichmentResult:
     """Outcome of one enrichment attempt against one Sancionado."""
 
-    estado: str  # encontrado | no_encontrado | error
+    estado: str  # encontrado | no_encontrado | error | omitido | sin_datos
     proveedor: str
     consulta: str | None = None
     fuente: str | None = None
@@ -53,7 +53,15 @@ class EnrichmentResult:
     evidencia: str | None = None
     telefono: str | None = None
     email: str | None = None
+    web: str | None = None
+    telefono_secundario: str | None = None
     linkedin_url: str | None = None
+    facebook_url: str | None = None
+    instagram_url: str | None = None
+    twitter_url: str | None = None
+    # Per-field provenance: campo -> {"valor", "fuente_url", "confidence"}.
+    # Directly JSONB-serialisable into Sancionado.contacto_detalle.
+    detalle: dict | None = None
     error: str | None = None
     duracion_ms: int | None = None
     coste_estimado_eur: float = 0.0

@@ -1,3 +1,5 @@
+import type { Sancionado } from "@/lib/types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
@@ -34,6 +36,9 @@ export const api = {
         web?: string | null;
         linkedin_url?: string | null;
         telefono_secundario?: string | null;
+        facebook_url?: string | null;
+        instagram_url?: string | null;
+        twitter_url?: string | null;
       }
     ) =>
       fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}`, {
@@ -48,7 +53,7 @@ export const api = {
     getSeguimientos: (id: number) =>
       fetchAPI<Record<string, unknown>[]>(`/api/sanciones/${id}/seguimientos`),
     enrich: (id: number) =>
-      fetchAPI<{ task_id: string; status: string }>(`/api/sanciones/${id}/enriquecer`, { method: "POST" }),
+      fetchAPI<{ task_id: string; status: string; estado_oportunidad: Sancionado["estado_oportunidad"] }>(`/api/sanciones/${id}/enriquecer`, { method: "POST" }),
     enrichmentAttempts: (id: number) =>
       fetchAPI<Record<string, unknown>[]>(`/api/sanciones/${id}/enriquecimiento`),
     convertir: (id: number) =>
