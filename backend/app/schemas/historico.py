@@ -9,6 +9,7 @@ class HistoricoResultadoOut(BaseModel):
     id: int
     cliente_id: int
     historico_doc_id: int
+    vinculo_id: int | None = None
     score: float
     via_match: str
     estado: str
@@ -26,6 +27,8 @@ class HistoricoResultadoOut(BaseModel):
     url_html: str | None = None
     url_xml: str | None = None
     fuera_de_ventana_teu: bool = False
+    # Vínculo's nombre when vinculo_id is set, otherwise the client's own name.
+    titular: str | None = None
 
     model_config = {"from_attributes": True}
 

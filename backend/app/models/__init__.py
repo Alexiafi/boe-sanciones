@@ -1,4 +1,11 @@
-from app.models.cliente import AccionAgendada, ActividadCliente, Cliente, CodigoClienteContador, NotaCliente
+from app.models.cliente import (
+    AccionAgendada,
+    ActividadCliente,
+    Cliente,
+    CodigoClienteContador,
+    NotaCliente,
+    VinculoCliente,
+)
 from app.models.codigo_oportunidad import CodigoOportunidadContador
 from app.models.documento import BoeDocumento
 from app.models.documentos_comerciales import ContadorFactura, DocumentoComercial, PlantillaDocumento
@@ -29,4 +36,5 @@ __all__ = [
     "Seguimiento",
     "Notificacion",
     "ScrapingRun",
+    "VinculoCliente",
 ]

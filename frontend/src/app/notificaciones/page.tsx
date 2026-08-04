@@ -14,6 +14,7 @@ export default function NotificacionesPage() {
   const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
   const [soloNoLeidas, setSoloNoLeidas] = useState(false);
+  const [soloClientes, setSoloClientes] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -21,6 +22,7 @@ export default function NotificacionesPage() {
     try {
       const params: Record<string, string> = { page: page.toString(), page_size: "20" };
       if (soloNoLeidas) params.solo_no_leidas = "true";
+      if (soloClientes) params.solo_clientes = "true";
       const res = await api.notificaciones.list(params);
       setData(res as unknown as PaginatedResponse<Notificacion>);
     } catch {
@@ -28,7 +30,7 @@ export default function NotificacionesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, soloNoLeidas]);
+  }, [page, soloNoLeidas, soloClientes]);
 
   useEffect(() => {
     fetchData();
@@ -71,6 +73,17 @@ export default function NotificacionesPage() {
               />
               Solo no leídas
             </label>
+            <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+              <input
+                type="checkbox"
+                checked={soloClientes}
+                onChange={(event) => {
+                  setSoloClientes(event.target.checked);
+                  setPage(1);
+                }}
+              />
+              Solo mis clientes
+            </label>
             <Button variant="secondary" size="sm" onClick={markAllRead}>
               Marcar todas como leídas
             </Button>
@@ -108,6 +121,11 @@ export default function NotificacionesPage() {
                   </div>
                   {n.mensaje && <p className="mt-1 truncate text-sm text-on-surface-variant">{n.mensaje}</p>}
                   <div className="mt-2 flex items-center gap-3">
+                    {n.cliente_id && (
+                      <Link href={`/clientes/${n.cliente_id}`} className="text-xs font-medium text-primary hover:underline">
+                        Ver cliente
+                      </Link>
+                    )}
                     {n.sancionado_id && (
                       <Link href={`/sanciones/${n.sancionado_id}`} className="text-xs font-medium text-primary hover:underline">
                         Ver sanción

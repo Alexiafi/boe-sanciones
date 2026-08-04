@@ -63,6 +63,27 @@ def test_filters_default_range_and_safe_patch(clean_database):
 
 
 @pytest.mark.integration
+def test_contacto_estado_filter(clean_database):
+    session = SyncSessionLocal()
+    today = date.today()
+    encontrado = _opportunity(session, "6", today, contact="600123123")
+    encontrado.contacto_estado = "encontrado"
+    pendiente = _opportunity(session, "7", today)
+    session.commit()
+    with TestClient(app) as client:
+        found = client.get("/api/sanciones", params={"contacto_estado": "encontrado"})
+        assert found.status_code == 200
+        assert [item["id"] for item in found.json()["items"]] == [encontrado.id]
+
+        pending = client.get("/api/sanciones", params={"contacto_estado": "pendiente"})
+        assert [item["id"] for item in pending.json()["items"]] == [pendiente.id]
+
+        invalid = client.get("/api/sanciones", params={"contacto_estado": "bogus"})
+        assert invalid.status_code == 422
+    session.close()
+
+
+@pytest.mark.integration
 def test_manual_contact_patch_marks_and_releases_manual_state(clean_database):
     session = SyncSessionLocal()
     today = date.today()

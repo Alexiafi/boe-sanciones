@@ -46,6 +46,10 @@ class SancionadoOut(BaseModel):
     web: str | None = None
     linkedin_url: str | None = None
     telefono_secundario: str | None = None
+    facebook_url: str | None = None
+    instagram_url: str | None = None
+    twitter_url: str | None = None
+    contacto_detalle: dict | None = None
     contacto_estado: str = "pendiente"
     contacto_fuente: str | None = None
     contacto_url: str | None = None
@@ -131,7 +135,10 @@ def _validate_url_value(value: str | None) -> str | None:
 # Manual edits touch these fields; the PATCH handler uses this set to decide
 # whether to (re)mark contacto_estado as "manual" so automatic enrichment never
 # overwrites what the user just entered.
-CONTACT_FIELDS = frozenset({"telefono", "email", "web", "linkedin_url", "telefono_secundario"})
+CONTACT_FIELDS = frozenset({
+    "telefono", "email", "web", "linkedin_url", "telefono_secundario",
+    "facebook_url", "instagram_url", "twitter_url",
+})
 
 
 class SancionadoUpdate(BaseModel):
@@ -143,6 +150,9 @@ class SancionadoUpdate(BaseModel):
     web: str | None = None
     linkedin_url: str | None = None
     telefono_secundario: str | None = None
+    facebook_url: str | None = None
+    instagram_url: str | None = None
+    twitter_url: str | None = None
 
     @field_validator("estado_oportunidad", mode="before")
     @classmethod
@@ -171,7 +181,7 @@ class SancionadoUpdate(BaseModel):
             raise ValueError("Email no válido")
         return value
 
-    @field_validator("web", "linkedin_url", mode="before")
+    @field_validator("web", "linkedin_url", "facebook_url", "instagram_url", "twitter_url", mode="before")
     @classmethod
     def validate_url(cls, value: str | None) -> str | None:
         return _validate_url_value(value)
@@ -184,6 +194,7 @@ class NotificacionOut(BaseModel):
     mensaje: str | None = None
     leida: bool
     sancionado_id: int | None = None
+    cliente_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

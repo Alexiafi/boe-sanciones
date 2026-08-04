@@ -2,8 +2,9 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { AlertTriangle, ArrowLeft, BadgeCheck, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AccionAgendada, ClienteDetail } from "@/lib/types";
+import type { AccionAgendada, ClienteDetail, SancionVinculada } from "@/lib/types";
 import {
   Button,
   Card,
@@ -21,6 +22,18 @@ import {
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { DocumentosBlock } from "./DocumentosBlock";
 import { HistoricoBlock } from "./HistoricoBlock";
+import { VinculosBlock } from "./VinculosBlock";
+
+function agruparPorTitular(sanciones: SancionVinculada[]): [string, SancionVinculada[]][] {
+  const grupos = new Map<string, SancionVinculada[]>();
+  for (const item of sanciones) {
+    const clave = item.titular || "Sin titular";
+    const lista = grupos.get(clave);
+    if (lista) lista.push(item);
+    else grupos.set(clave, [item]);
+  }
+  return Array.from(grupos.entries());
+}
 
 export default function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -130,16 +143,33 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link href="/clientes" className="text-sm text-primary hover:underline">
-          ← Clientes
-        </Link>
-        <span className="text-on-surface-variant">/</span>
-        <h1 className="truncate text-xl font-bold text-on-surface">
-          {cliente.codigo} · {cliente.nombre_razon_social}
-        </h1>
-        <EstadoChip dominio="estado_cliente" valor={cliente.estado_cliente} />
+      <div className="mb-5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">
+        <Link href="/clientes" className="flex items-center gap-1.5 text-primary hover:underline"><ArrowLeft className="h-3.5 w-3.5" /> Clientes</Link>
+        <span>/</span><span>{cliente.codigo}</span><span>/</span><span>Ficha</span>
       </div>
+
+      <section className="mb-8 grid grid-cols-1 gap-5 xl:grid-cols-[1fr_22rem]">
+        <div className="flex flex-col justify-between gap-6 rounded-2xl border border-outline-variant/55 bg-white p-6 shadow-ambient sm:flex-row sm:items-center lg:p-8">
+          <div className="flex min-w-0 items-center gap-5">
+            <span className="grid h-20 w-20 shrink-0 place-items-center rounded-2xl bg-primary text-xl font-black text-white shadow-[0_14px_28px_rgba(6,31,71,0.2)]">
+              {cliente.nombre_razon_social.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-outline"><Building2 className="h-3.5 w-3.5" /> Ficha de cliente</div>
+              <h1 className="truncate text-2xl font-extrabold tracking-[-0.04em] text-primary sm:text-3xl">{cliente.nombre_razon_social}</h1>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-on-surface-variant"><span>{cliente.codigo}</span><span className="h-1 w-1 rounded-full bg-outline" /><span>{cliente.cif_nif || cliente.dni_nie || "Identificador pendiente"}</span><EstadoChip dominio="estado_cliente" valor={cliente.estado_cliente} /></div>
+            </div>
+          </div>
+          <span className="hidden h-12 w-px bg-outline-variant sm:block" />
+          <div className="flex items-center gap-3 text-success"><BadgeCheck className="h-5 w-5" /><div><p className="text-[9px] font-bold uppercase tracking-[0.13em]">Relación</p><p className="text-sm font-semibold">Cliente verificado</p></div></div>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl bg-primary p-7 text-white shadow-[0_18px_40px_rgba(6,31,71,0.22)]">
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/6" />
+          <p className="relative text-[10px] font-bold uppercase tracking-[0.16em] text-on-primary-container">Deuda pendiente</p>
+          <p className="relative mt-3 text-3xl font-extrabold tracking-[-0.045em]">{formatCurrency(cliente.deuda_pendiente_eur ?? 0)}</p>
+          <p className="relative mt-5 flex items-center gap-2 text-xs text-white/65"><AlertTriangle className="h-4 w-4 text-[#ffd398]" /> {cliente.sanciones.length} {cliente.sanciones.length === 1 ? "sanción vinculada" : "sanciones vinculadas"}</p>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
@@ -163,34 +193,53 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
             <CardTitle>Sanciones vinculadas</CardTitle>
             <div className="mt-4">
               {cliente.sanciones.length ? (
-                <div className="space-y-2">
-                  {cliente.sanciones.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3 text-sm">
-                      <div>
-                        <span className="font-mono text-xs text-on-surface-variant">{item.codigo}</span>
-                        <span className="ml-2 text-on-surface-variant">{item.fecha_publicacion}</span>
-                        {(item.importe_multa_eur ?? item.importe_deuda_eur) != null && (
-                          <span className="ml-2 text-on-surface">{formatCurrency(item.importe_multa_eur ?? item.importe_deuda_eur)}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {item.url_documento && (
-                          <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                            Ver BOE
-                          </a>
-                        )}
-                        <Link href={`/sanciones/${item.id}`} className="text-xs text-primary hover:underline">
-                          Detalle
-                        </Link>
-                      </div>
+                (() => {
+                  const grupos = agruparPorTitular(cliente.sanciones);
+                  const mostrarTitulares = grupos.length > 1;
+                  return (
+                    <div className="space-y-5">
+                      {grupos.map(([titular, items]) => (
+                        <div key={titular}>
+                          {mostrarTitulares && (
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.11em] text-on-surface-variant">
+                              {titular}
+                            </p>
+                          )}
+                          <div className="space-y-2">
+                            {items.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3 text-sm">
+                                <div>
+                                  <span className="font-mono text-xs text-on-surface-variant">{item.codigo}</span>
+                                  <span className="ml-2 text-on-surface-variant">{item.fecha_publicacion}</span>
+                                  {(item.importe_multa_eur ?? item.importe_deuda_eur) != null && (
+                                    <span className="ml-2 text-on-surface">{formatCurrency(item.importe_multa_eur ?? item.importe_deuda_eur)}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  {item.url_documento && (
+                                    <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                                      Ver BOE
+                                    </a>
+                                  )}
+                                  <Link href={`/sanciones/${item.id}`} className="text-xs text-primary hover:underline">
+                                    Detalle
+                                  </Link>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
               ) : (
                 <EmptyState title="Sin sanciones vinculadas." />
               )}
             </div>
           </Card>
+
+          <VinculosBlock clienteId={cliente.id} />
 
           <HistoricoBlock clienteId={cliente.id} />
 

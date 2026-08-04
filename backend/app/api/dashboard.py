@@ -40,6 +40,11 @@ async def dashboard_stats(db: AsyncSession = Depends(get_db)):
     unread_notifs = (await db.execute(
         select(func.count(Notificacion.id)).where(Notificacion.leida == False)  # noqa: E712
     )).scalar() or 0
+    unread_client_alerts = (await db.execute(
+        select(func.count(Notificacion.id)).where(
+            Notificacion.leida == False, Notificacion.cliente_id.is_not(None)  # noqa: E712
+        )
+    )).scalar() or 0
 
     last_run = (await db.execute(
         select(ScrapingRun).order_by(ScrapingRun.created_at.desc()).limit(1)
@@ -72,6 +77,7 @@ async def dashboard_stats(db: AsyncSession = Depends(get_db)):
         "sancionados_hoy": sancionados_today,
         "sancionados_semana": sancionados_week,
         "notificaciones_sin_leer": unread_notifs,
+        "alertas_clientes_sin_leer": unread_client_alerts,
         "ultimo_scraping": {
             "fecha": str(last_run.fecha_boe) if last_run else None,
             "status": last_run.status if last_run else None,

@@ -10,10 +10,13 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-5 lg:mb-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-[-0.02em] text-on-surface">{title}</h1>
-        {description && <p className="mt-1 text-sm text-on-surface-variant">{description}</p>}
+        <div className="mb-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.19em] text-outline">
+          <span className="h-px w-5 bg-outline-variant" /> BOE Oportunidades
+        </div>
+        <h1 className="text-[2rem] font-extrabold leading-[1.08] tracking-[-0.045em] text-primary sm:text-[2.45rem]">{title}</h1>
+        {description && <p className="mt-2 max-w-3xl text-sm leading-relaxed text-on-surface-variant sm:text-base">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>

@@ -21,11 +21,14 @@ from app.models.scraping_run import ScrapingRun
 from app.services.boe_client import fetch_document_content, fetch_document_pdf, fetch_sumario, flatten_sumario, hash_text
 from app.services.classifier import classify_document, should_skip_section, verify_with_body
 from app.services.extractor import ResultadoExtraccion, extract_sanctions
+from app.services.alertas import ejecutar_radar_clientes
 from app.services.historico.indexado import upsert_from_doc_data
+from app.services.historico.patterns import normalizar_identificador
 from app.services.notifier import create_inapp_notification, send_email_digest
 from app.services.oportunidades import upsert_afectado
 from app.services.parser import extract_text_from_document, pdf_to_text
 from app.services.teu_client import MAX_TEU_PER_RUN, fetch_teu_index, fetch_teu_pdf, filter_relevant_teu_entries, parse_teu_index
+from app.services.vinculos import asignar_sancion_a_cliente, indice_identificadores
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +200,25 @@ def _scrape_teu(db, run, target_date: date, allow_extraction: bool, limit: int, 
         _process_candidate(db, run, entry, content, "pdf", ["teu_title_match"], 0.80, "notificacion_teu", allow_extraction, limit, deps, new_sancionados, stats, force)
 
 
+def _asignar_sanciones_a_clientes_existentes(db, new_sancionados: list, stats: dict[str, int]) -> None:
+    """Auto-assign this run's newly extracted opportunities to an existing
+    client (own identifier or a vínculo's) — "Vía A" of the client-alert
+    feature. Vía B, the free daily radar over the historical index, runs
+    independently and covers days with OpenAI extraction disabled."""
+    if not new_sancionados:
+        return
+    indice = indice_identificadores(db)
+    asignadas = 0
+    for sancionado in new_sancionados:
+        clave = normalizar_identificador(sancionado.identificador)
+        if not clave or clave not in indice:
+            continue
+        cliente_id, vinculo_id = indice[clave]
+        if asignar_sancion_a_cliente(db, sancionado, cliente_id, vinculo_id):
+            asignadas += 1
+    stats["clientes_asignados"] = asignadas
+
+
 def run_scraping(fecha_str: str | None = None, force: bool = False, permitir_extraccion_pago: bool = False, dependencies: PipelineDependencies | None = None) -> dict[str, int | bool | str]:
     """Run one date with no paid extraction unless both gates are open."""
     target_date = date.fromisoformat(fecha_str) if fecha_str else date.today()
@@ -207,7 +229,10 @@ def run_scraping(fecha_str: str | None = None, force: bool = False, permitir_ext
     limit = settings.openai_extraction_max_documents_per_run if allow_extraction else 0
     db = SyncSessionLocal()
     lock_connection = sync_engine.connect()
-    stats: dict[str, int | bool | str] = {"total_docs": 0, "candidates": 0, "extracted": 0, "errors": 0, "scanned": 0, "openai_calls": 0}
+    stats: dict[str, int | bool | str] = {
+        "total_docs": 0, "candidates": 0, "extracted": 0, "errors": 0, "scanned": 0, "openai_calls": 0,
+        "clientes_asignados": 0,
+    }
     new_sancionados: list = []
     lock_acquired = False
 
@@ -260,6 +285,22 @@ def run_scraping(fecha_str: str | None = None, force: bool = False, permitir_ext
             _scrape_teu(db, run, target_date, allow_extraction, limit, deps, new_sancionados, stats, force)
         except Exception:
             logger.exception("TEU ingestion failed for %s", target_date)
+
+        # Auto-assign today's newly extracted sanctions to existing clients.
+        # Isolated the same way: a bug here must not lose an already
+        # persisted day's ingestion.
+        try:
+            _asignar_sanciones_a_clientes_existentes(db, new_sancionados, stats)
+        except Exception:
+            logger.exception("No se pudieron asignar sanciones a clientes existentes para %s", target_date)
+
+        # Free radar over the already-indexed historical documents — the only
+        # detection path that still catches a client's new sanction when
+        # OpenAI extraction was disabled today.
+        try:
+            ejecutar_radar_clientes(db)
+        except Exception:
+            logger.exception("El radar de alertas de clientes falló para %s", target_date)
 
         run.status = "completed"
         run.total_docs = int(stats["total_docs"])

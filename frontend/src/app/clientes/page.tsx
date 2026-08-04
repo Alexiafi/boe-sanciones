@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, UsersRound } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Cliente, PaginatedResponse } from "@/lib/types";
-import { Card, EmptyState, ErrorState, EstadoChip, Field, Input, PageHeader, Pagination, Select, Spinner } from "@/components/ui";
+import { Card, EmptyState, ErrorState, EstadoChip, Field, Input, LinkButton, PageHeader, Pagination, Select, Spinner } from "@/components/ui";
 import { formatCurrency } from "@/lib/formatters";
 
 export default function ClientesPage() {
@@ -40,7 +41,11 @@ export default function ClientesPage() {
 
   return (
     <div>
-      <PageHeader title="Clientes" description="Directorio de oportunidades convertidas en clientes." />
+      <PageHeader
+        title="Directorio de entidades"
+        description="Administra la cartera de clientes, sus datos de contacto y el estado de cada relación."
+        actions={<LinkButton href="/sanciones" variant="primary"><UsersRound className="h-4 w-4" /> Convertir oportunidad <ArrowRight className="h-4 w-4" /></LinkButton>}
+      />
 
       <Card className="mb-6">
         <form
@@ -104,7 +109,14 @@ export default function ClientesPage() {
                   {data.items.map((item) => (
                     <tr key={item.id} className="hover:bg-surface-container-low">
                       <td className="px-4 py-2.5 font-mono text-xs text-on-surface-variant">{item.codigo}</td>
-                      <td className="max-w-[220px] truncate px-4 py-2.5 font-medium text-on-surface">{item.nombre_razon_social}</td>
+                      <td className="max-w-[260px] px-4 py-3 font-medium text-on-surface">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-secondary-container text-xs font-extrabold text-primary">
+                            {item.nombre_razon_social.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                          </span>
+                          <span className="truncate font-semibold text-primary">{item.nombre_razon_social}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-2.5 text-on-surface-variant">{item.cif_nif || item.dni_nie || "—"}</td>
                       <td className="px-4 py-2.5 text-xs text-on-surface-variant">{item.telefono || item.email || "—"}</td>
                       <td className="px-4 py-2.5 text-on-surface">{item.deuda_pendiente_eur ? formatCurrency(item.deuda_pendiente_eur) : "—"}</td>

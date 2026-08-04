@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.cliente import VinculoCliente
 from app.models.notificacion import Notificacion
 from app.models.sancionado import Sancionado
 from app.services.mailer import email_sending_available, enviar_email
@@ -18,8 +19,32 @@ def create_inapp_notification(
     db: Session,
     sancionado: Sancionado,
     tipo: str = "nueva_sancion",
+    cliente_id: int | None = None,
+    vinculo_id: int | None = None,
 ) -> Notificacion:
-    titulo = f"Nueva sanción: {sancionado.nombre or 'Desconocido'}"
+    """Create the in-app alert for a new sanction.
+
+    ``cliente_id``/``vinculo_id`` are set only when the sanction was
+    automatically assigned to an existing client (see
+    ``services/vinculos.asignar_sancion_a_cliente`` and
+    ``services/alertas.ejecutar_radar_clientes``) — that's what the
+    "Solo mis clientes" filter in /notificaciones matches on.
+    """
+    rol = None
+    titular = sancionado.nombre
+    if vinculo_id is not None:
+        vinculo = db.get(VinculoCliente, vinculo_id)
+        if vinculo is not None:
+            titular = vinculo.nombre or titular
+            rol = vinculo.rol
+
+    if cliente_id is not None:
+        titulo = f"Nueva sanción de cliente: {titular or 'Desconocido'}"
+        if rol:
+            titulo += f" ({rol})"
+    else:
+        titulo = f"Nueva sanción: {titular or 'Desconocido'}"
+
     partes = []
     if sancionado.organismo_emisor:
         partes.append(f"Organismo: {sancionado.organismo_emisor}")
@@ -38,6 +63,7 @@ def create_inapp_notification(
         mensaje=mensaje,
         leida=False,
         sancionado_id=sancionado.id,
+        cliente_id=cliente_id,
     )
     db.add(notif)
     db.flush()

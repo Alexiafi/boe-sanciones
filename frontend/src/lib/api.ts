@@ -1,3 +1,5 @@
+import type { Sancionado } from "@/lib/types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
@@ -34,6 +36,9 @@ export const api = {
         web?: string | null;
         linkedin_url?: string | null;
         telefono_secundario?: string | null;
+        facebook_url?: string | null;
+        instagram_url?: string | null;
+        twitter_url?: string | null;
       }
     ) =>
       fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}`, {
@@ -48,7 +53,7 @@ export const api = {
     getSeguimientos: (id: number) =>
       fetchAPI<Record<string, unknown>[]>(`/api/sanciones/${id}/seguimientos`),
     enrich: (id: number) =>
-      fetchAPI<{ task_id: string; status: string }>(`/api/sanciones/${id}/enriquecer`, { method: "POST" }),
+      fetchAPI<{ task_id: string; status: string; estado_oportunidad: Sancionado["estado_oportunidad"] }>(`/api/sanciones/${id}/enriquecer`, { method: "POST" }),
     enrichmentAttempts: (id: number) =>
       fetchAPI<Record<string, unknown>[]>(`/api/sanciones/${id}/enriquecimiento`),
     convertir: (id: number) =>
@@ -111,6 +116,36 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ cuantia, concepto }),
       }),
+    listVinculos: (id: number) => fetchAPI<Record<string, unknown>[]>(`/api/clientes/${id}/vinculos`),
+    addVinculo: (
+      id: number,
+      data: {
+        cliente_vinculado_id?: number | null;
+        rol: string;
+        nombre?: string | null;
+        tipo_persona?: string | null;
+        identificador?: string | null;
+        tipo_identificador?: string | null;
+        telefono?: string | null;
+        email?: string | null;
+        notas?: string | null;
+      }
+    ) =>
+      fetchAPI<Record<string, unknown>>(`/api/clientes/${id}/vinculos`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateVinculo: (id: number, vinculoId: number, data: Record<string, unknown>) =>
+      fetchAPI<Record<string, unknown>>(`/api/clientes/${id}/vinculos/${vinculoId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    deleteVinculo: (id: number, vinculoId: number) =>
+      fetchAPI<{ deleted: boolean }>(`/api/clientes/${id}/vinculos/${vinculoId}`, {
+        method: "DELETE",
+      }),
+    radarAlertas: () =>
+      fetchAPI<Record<string, number>>("/api/clientes/alertas/radar", { method: "POST" }),
   },
 
   historico: {
@@ -160,7 +195,7 @@ export const api = {
       const qs = new URLSearchParams(params).toString();
       return fetchAPI<Record<string, unknown>>(`/api/notificaciones?${qs}`);
     },
-    unreadCount: () => fetchAPI<{ count: number }>("/api/notificaciones/unread-count"),
+    unreadCount: () => fetchAPI<{ count: number; count_clientes: number }>("/api/notificaciones/unread-count"),
     markRead: (ids: number[]) =>
       fetchAPI<Record<string, unknown>>("/api/notificaciones/mark-read", {
         method: "POST",

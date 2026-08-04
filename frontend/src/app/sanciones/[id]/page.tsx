@@ -40,6 +40,9 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
   const [web, setWeb] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [telefonoSecundario, setTelefonoSecundario] = useState("");
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [twitterUrl, setTwitterUrl] = useState("");
   const [nota, setNota] = useState("");
   const [notaError, setNotaError] = useState<string | null>(null);
   const [enriching, setEnriching] = useState(false);
@@ -59,6 +62,9 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
       setWeb(result.web || "");
       setLinkedinUrl(result.linkedin_url || "");
       setTelefonoSecundario(result.telefono_secundario || "");
+      setFacebookUrl(result.facebook_url || "");
+      setInstagramUrl(result.instagram_url || "");
+      setTwitterUrl(result.twitter_url || "");
       setIntentos((await api.sanciones.enrichmentAttempts(Number(id))) as unknown as EnriquecimientoIntento[]);
     } catch {
       setSancion(null);
@@ -83,6 +89,9 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
         web: web || null,
         linkedin_url: linkedinUrl || null,
         telefono_secundario: telefonoSecundario || null,
+        facebook_url: facebookUrl || null,
+        instagram_url: instagramUrl || null,
+        twitter_url: twitterUrl || null,
       })) as unknown as Sancionado;
       setSancion(result);
       setNotice("Cambios guardados.");
@@ -110,7 +119,12 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
     setEnriching(true);
     setEnrichNotice(null);
     try {
-      await api.sanciones.enrich(Number(id));
+      const result = await api.sanciones.enrich(Number(id));
+      // Reaching for this button marks the lead as "revisada" server-side
+      // (see POST /enriquecer); reflect that immediately instead of waiting
+      // for a manual reload.
+      setEstado(result.estado_oportunidad);
+      setSancion((prev) => (prev ? { ...prev, estado_oportunidad: result.estado_oportunidad } : prev));
       setEnrichNotice("Enriquecimiento encolado. Los resultados tardan unos segundos en aparecer; recarga para verlos.");
     } catch (error) {
       setEnrichNotice(`No se pudo lanzar el enriquecimiento: ${error}`);
@@ -180,25 +194,22 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
 
           <Card>
             <CardHeaderWithChip sancion={sancion} />
-            <div className="mt-2 divide-y divide-outline-variant/15">
-              <InfoRow label="Teléfono" value={sancion.telefono} />
-              <InfoRow label="Teléfono secundario" value={sancion.telefono_secundario} />
-              <InfoRow label="Email" value={sancion.email} />
-              <InfoRow label="Web" value={sancion.web} />
-            </div>
-            {sancion.linkedin_url && (
-              <div className="flex justify-between gap-4 py-2.5">
-                <span className="text-sm text-on-surface-variant">LinkedIn</span>
-                <a
-                  href={sancion.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="max-w-[60%] truncate text-right text-sm text-primary hover:underline"
-                >
-                  {sancion.linkedin_url}
-                </a>
-              </div>
+            {sancion.contacto_estado === "sin_datos" && (
+              <Notice tone="info" className="mb-3">
+                Solo se dispone del identificador fiscal (sin nombre ni ubicación), por lo que la búsqueda
+                automática no es viable. Puedes completar el contacto a mano.
+              </Notice>
             )}
+            <div className="mt-2 divide-y divide-outline-variant/15">
+              <ContactoRow label="Teléfono" valor={sancion.telefono} dato={sancion.contacto_detalle?.telefono} />
+              <ContactoRow label="Teléfono secundario" valor={sancion.telefono_secundario} dato={sancion.contacto_detalle?.telefono_secundario} />
+              <ContactoRow label="Email" valor={sancion.email} dato={sancion.contacto_detalle?.email} />
+              <ContactoRow label="Web" valor={sancion.web} dato={sancion.contacto_detalle?.web} />
+              <ContactoRow label="LinkedIn" valor={sancion.linkedin_url} dato={sancion.contacto_detalle?.linkedin_url} />
+              <ContactoRow label="Facebook" valor={sancion.facebook_url} dato={sancion.contacto_detalle?.facebook_url} />
+              <ContactoRow label="Instagram" valor={sancion.instagram_url} dato={sancion.contacto_detalle?.instagram_url} />
+              <ContactoRow label="Twitter / X" valor={sancion.twitter_url} dato={sancion.contacto_detalle?.twitter_url} />
+            </div>
             {sancion.contacto_estado !== "pendiente" && (
               <div className="mt-3 space-y-1 text-xs text-on-surface-variant">
                 {sancion.contacto_fuente && (
@@ -296,6 +307,15 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
               <Field label="LinkedIn (enlace añadido a mano)">
                 <Input value={linkedinUrl} onChange={(event) => setLinkedinUrl(event.target.value)} maxLength={500} placeholder="https://linkedin.com/…" />
               </Field>
+              <Field label="Facebook">
+                <Input value={facebookUrl} onChange={(event) => setFacebookUrl(event.target.value)} maxLength={500} placeholder="https://facebook.com/…" />
+              </Field>
+              <Field label="Instagram">
+                <Input value={instagramUrl} onChange={(event) => setInstagramUrl(event.target.value)} maxLength={500} placeholder="https://instagram.com/…" />
+              </Field>
+              <Field label="Twitter / X">
+                <Input value={twitterUrl} onChange={(event) => setTwitterUrl(event.target.value)} maxLength={500} placeholder="https://x.com/…" />
+              </Field>
               <Button type="submit" disabled={saving} className="w-full">
                 {saving ? "Guardando…" : "Guardar cambios"}
               </Button>
@@ -351,6 +371,38 @@ function CardHeaderWithChip({ sancion }: { sancion: Sancionado }) {
     <div className="mb-2 flex items-center justify-between">
       <CardTitle>Contacto</CardTitle>
       <EstadoChip dominio="contacto_estado" valor={sancion.contacto_estado} />
+    </div>
+  );
+}
+
+type ContactoDato = { valor: string; fuente_url: string | null; confidence: number };
+
+function ContactoRow({ label, valor, dato }: { label: string; valor: string | null; dato?: ContactoDato }) {
+  if (!valor) return null;
+  const isUrl = /^https?:\/\//.test(valor);
+  return (
+    <div className="flex justify-between gap-4 py-3">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.055em] text-on-surface-variant">{label}</span>
+      <span className="max-w-[62%] text-right text-sm font-semibold text-primary">
+        {isUrl ? (
+          <a href={valor} target="_blank" rel="noopener noreferrer" className="break-all hover:underline">
+            {valor}
+          </a>
+        ) : (
+          valor
+        )}
+        {dato?.fuente_url && (
+          <a
+            href={dato.fuente_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Fuente: ${dato.fuente_url}`}
+            className="ml-2 text-[10px] font-normal uppercase tracking-[0.05em] text-on-surface-variant hover:text-primary hover:underline"
+          >
+            fuente
+          </a>
+        )}
+      </span>
     </div>
   );
 }

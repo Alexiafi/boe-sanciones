@@ -110,8 +110,9 @@ async def convertir_oportunidad(db: AsyncSession, sancionado: Sancionado) -> tup
     await db.flush()
 
     sancionado.cliente_id = cliente.id
-    # This is the only code path allowed to set "cliente": PATCH rejects it
-    # (session 1), so conversion is the sole way an opportunity reaches it.
+    # PATCH rejects "cliente" (session 1) — the only ways an opportunity
+    # reaches it are this manual conversion and the automatic assignment in
+    # services/vinculos.asignar_sancion_a_cliente (session 4).
     sancionado.estado_oportunidad = "cliente"
 
     db.add(ActividadCliente(
