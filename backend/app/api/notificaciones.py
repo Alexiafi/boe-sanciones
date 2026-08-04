@@ -18,6 +18,7 @@ async def list_notificaciones(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     solo_no_leidas: bool = False,
+    solo_clientes: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Notificacion).order_by(Notificacion.created_at.desc())
@@ -26,6 +27,9 @@ async def list_notificaciones(
     if solo_no_leidas:
         query = query.where(Notificacion.leida == False)  # noqa: E712
         count_query = count_query.where(Notificacion.leida == False)  # noqa: E712
+    if solo_clientes:
+        query = query.where(Notificacion.cliente_id.is_not(None))
+        count_query = count_query.where(Notificacion.cliente_id.is_not(None))
 
     total = (await db.execute(count_query)).scalar() or 0
     offset = (page - 1) * page_size
@@ -44,7 +48,12 @@ async def unread_count(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(func.count(Notificacion.id)).where(Notificacion.leida == False)  # noqa: E712
     )
-    return {"count": result.scalar() or 0}
+    result_clientes = await db.execute(
+        select(func.count(Notificacion.id)).where(
+            Notificacion.leida == False, Notificacion.cliente_id.is_not(None)  # noqa: E712
+        )
+    )
+    return {"count": result.scalar() or 0, "count_clientes": result_clientes.scalar() or 0}
 
 
 @router.post("/mark-read", response_model=dict)

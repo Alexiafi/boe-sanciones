@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.models.cliente import Cliente
+from app.models.cliente import Cliente, VinculoCliente
 from app.models.historico import HistoricoDoc, HistoricoResultado
 from app.services.historico.indexado import upsert_historico_doc
 from app.services.historico.patterns import (
@@ -33,6 +33,7 @@ from app.services.historico.teu_publico import (
     get_teu_buscador,
     teu_search_available,
 )
+from app.services.vinculos import vinculos_de_cliente
 
 __all__ = [
     "AVISO_TEU",
@@ -72,16 +73,37 @@ def _claves_de_consulta(
     return ClavesCliente(identificadores, matriculas, nombre_norm, dni_completo)
 
 
-def _mejor(acumulado: dict[int, tuple[HistoricoDoc, str, float]], doc: HistoricoDoc, via: str, score: float) -> None:
+def _claves_de_vinculo(vinculo: VinculoCliente) -> ClavesCliente:
+    """Same shape as ``claves_de_cliente``, for a linked administrador/
+    conductor/filial rather than the client itself. ``dni_completo`` is only
+    set for a physical person, so DNI-mask matching in ``_buscar_por_nombre``
+    never runs against a company's CIF."""
+    es_fisica = vinculo.tipo_persona != "juridica"
+    return _claves_de_consulta(
+        cif=None if es_fisica else vinculo.identificador,
+        dni=vinculo.identificador if es_fisica else None,
+        matricula=None,
+        nombre=vinculo.nombre,
+    )
+
+
+def _mejor(
+    acumulado: dict[int, tuple[HistoricoDoc, str, float, int | None]],
+    doc: HistoricoDoc, via: str, score: float, vinculo_id: int | None = None,
+) -> None:
     previo = acumulado.get(doc.id)
     if previo is None or score > previo[2]:
-        acumulado[doc.id] = (doc, via, score)
+        acumulado[doc.id] = (doc, via, score, vinculo_id)
 
 
 def _buscar_exactas(db: Session, claves: ClavesCliente) -> list[tuple[HistoricoDoc, str, float]]:
     encontrados: list[tuple[HistoricoDoc, str, float]] = []
-    for idx, clave in enumerate(claves.identificadores):
-        via = "cif" if idx == 0 else "dni"
+    for clave in claves.identificadores:
+        # dni_completo is only ever populated from the dni/dni_nie slot, so
+        # comparing against it (rather than assuming "first identifier = cif")
+        # correctly labels a vínculo or client with only a DNI/NIE — no CIF —
+        # instead of mislabeling their sole identifier as "cif".
+        via = "dni" if claves.dni_completo and clave == claves.dni_completo else "cif"
         docs = db.execute(
             select(HistoricoDoc).where(HistoricoDoc.identificadores.contains([clave]))
         ).scalars().all()
@@ -174,7 +196,12 @@ def _buscar_teu(
     return encontrados, None
 
 
-def _persistir_resultado(db: Session, cliente_id: int, doc: HistoricoDoc, via: str, score: float) -> HistoricoResultado:
+def _persistir_resultado(
+    db: Session, cliente_id: int, doc: HistoricoDoc, via: str, score: float, vinculo_id: int | None = None
+) -> tuple[HistoricoResultado, bool]:
+    """Returns ``(resultado, creado)`` — ``creado`` is what lets callers (the
+    free radar in ``services/alertas.py``) know which matches are new since
+    the last search, without re-deriving it from timestamps."""
     existing = db.execute(
         select(HistoricoResultado).where(
             HistoricoResultado.cliente_id == cliente_id,
@@ -186,15 +213,16 @@ def _persistir_resultado(db: Session, cliente_id: int, doc: HistoricoDoc, via: s
         if float(score) > float(existing.score):
             existing.score = score
             existing.via_match = via
+            existing.vinculo_id = vinculo_id
         existing.detalle_match = {"vias": sorted(vias)}
-        return existing
+        return existing, False
     resultado = HistoricoResultado(
         cliente_id=cliente_id, historico_doc_id=doc.id, score=score, via_match=via,
-        detalle_match={"vias": [via]},
+        vinculo_id=vinculo_id, detalle_match={"vias": [via]},
     )
     db.add(resultado)
     db.flush()
-    return resultado
+    return resultado, True
 
 
 def _cobertura_teu(desde: date | None = None, hasta: date | None = None) -> dict:
@@ -209,13 +237,24 @@ def buscar_historico(
     db: Session, cliente: Cliente, *, incluir_teu: bool = False, limite: int = 200,
     buscador_teu: TeuBuscador | None = None,
 ) -> dict:
-    """Search + persist. Returns {"resultados": [...], "avisos": [...]}."""
+    """Search + persist, for the client itself and every one of its vínculos
+    (administrador/conductor/filial…). Returns
+    {"resultados": [...], "avisos": [...], "cobertura_teu": ..., "nuevos": [...]}
+    — ``nuevos`` holds the ids of results created by this call, used by the
+    free radar in ``services/alertas.py`` to know what to alert on."""
     claves = claves_de_cliente(cliente)
-    acumulado: dict[int, tuple[HistoricoDoc, str, float]] = {}
+    acumulado: dict[int, tuple[HistoricoDoc, str, float, int | None]] = {}
     for doc, via, score in _buscar_exactas(db, claves):
         _mejor(acumulado, doc, via, score)
     for doc, via, score in _buscar_por_nombre(db, claves, limite=limite):
         _mejor(acumulado, doc, via, score)
+
+    for vinculo in vinculos_de_cliente(db, cliente.id):
+        claves_vinculo = _claves_de_vinculo(vinculo)
+        for doc, via, score in _buscar_exactas(db, claves_vinculo):
+            _mejor(acumulado, doc, via, score, vinculo.id)
+        for doc, via, score in _buscar_por_nombre(db, claves_vinculo, limite=limite):
+            _mejor(acumulado, doc, via, score, vinculo.id)
 
     avisos = [AVISO_TEU]
     if incluir_teu:
@@ -225,12 +264,17 @@ def buscar_historico(
         for doc, via, score in teu_hits:
             _mejor(acumulado, doc, via, score)
 
-    resultados = [
-        _persistir_resultado(db, cliente.id, doc, via, score)
-        for doc, via, score in acumulado.values()
+    persistidos = [
+        _persistir_resultado(db, cliente.id, doc, via, score, vinculo_id)
+        for doc, via, score, vinculo_id in acumulado.values()
     ]
     db.commit()
-    return {"resultados": resultados, "avisos": avisos, "cobertura_teu": _cobertura_teu()}
+    return {
+        "resultados": [resultado for resultado, _creado in persistidos],
+        "avisos": avisos,
+        "cobertura_teu": _cobertura_teu(),
+        "nuevos": [resultado.id for resultado, creado in persistidos if creado],
+    }
 
 
 def consultar_historico(
@@ -243,7 +287,7 @@ def consultar_historico(
     TEU hits, if requested and available, are still materialised into the
     shared ``historico_docs`` index (that accumulation is the point)."""
     claves = _claves_de_consulta(cif=cif, dni=dni, matricula=matricula, nombre=nombre)
-    acumulado: dict[int, tuple[HistoricoDoc, str, float]] = {}
+    acumulado: dict[int, tuple[HistoricoDoc, str, float, int | None]] = {}
     for doc, via, score in _buscar_exactas(db, claves):
         _mejor(acumulado, doc, via, score)
     for doc, via, score in _buscar_por_nombre(db, claves, limite=limite):
@@ -274,6 +318,6 @@ def consultar_historico(
             "url_xml": doc.url_xml,
             "fuera_de_ventana_teu": doc.fuente == "teu" and fuera_de_ventana_teu(doc.fecha_publicacion, hoy=hoy),
         }
-        for doc, via, score in ordenados
+        for doc, via, score, _vinculo_id in ordenados
     ]
     return {"resultados": items, "avisos": avisos, "cobertura_teu": _cobertura_teu()}

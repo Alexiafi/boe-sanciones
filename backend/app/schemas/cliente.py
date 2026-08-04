@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class ClienteOut(BaseModel):
@@ -47,8 +47,122 @@ class SancionVinculadaOut(BaseModel):
     importe_multa_eur: float | None = None
     importe_deuda_eur: float | None = None
     url_documento: str | None = None
+    vinculo_id: int | None = None
+    # Not an ORM attribute — set by the endpoint after model_validate() to the
+    # vínculo's nombre, or the client's own name when vinculo_id is null. Lets
+    # the UI group "Sanciones vinculadas" by titular without a second call.
+    titular: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class VinculoOut(BaseModel):
+    id: int
+    cliente_id: int
+    cliente_vinculado_id: int | None = None
+    rol: str
+    nombre: str | None = None
+    tipo_persona: str | None = None
+    identificador: str | None = None
+    tipo_identificador: str | None = None
+    telefono: str | None = None
+    email: str | None = None
+    notas: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+def _validate_vinculo_telefono(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > 50 or not re.fullmatch(r"[0-9+()./ -]+", value):
+        raise ValueError("Teléfono no válido")
+    return value
+
+
+def _validate_vinculo_email(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > 200 or not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value):
+        raise ValueError("Email no válido")
+    return value
+
+
+class VinculoCreate(BaseModel):
+    cliente_vinculado_id: int | None = None
+    rol: str
+    nombre: str | None = None
+    tipo_persona: Literal["fisica", "juridica"] | None = None
+    identificador: str | None = None
+    tipo_identificador: str | None = None
+    telefono: str | None = None
+    email: str | None = None
+    notas: str | None = None
+
+    @field_validator("rol")
+    @classmethod
+    def rol_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El rol no puede estar vacío")
+        return value
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def validate_telefono(cls, value: str | None) -> str | None:
+        return _validate_vinculo_telefono(value)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return _validate_vinculo_email(value)
+
+    @model_validator(mode="after")
+    def _nombre_o_vinculado(self) -> "VinculoCreate":
+        if not self.nombre and not self.cliente_vinculado_id:
+            raise ValueError("Debe indicar un nombre o un cliente_vinculado_id ya existente")
+        return self
+
+
+class VinculoUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    cliente_vinculado_id: int | None = None
+    rol: str | None = None
+    nombre: str | None = None
+    tipo_persona: Literal["fisica", "juridica"] | None = None
+    identificador: str | None = None
+    tipo_identificador: str | None = None
+    telefono: str | None = None
+    email: str | None = None
+    notas: str | None = None
+
+    @field_validator("rol", mode="before")
+    @classmethod
+    def reject_null_rol(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("rol no puede ser null")
+        value = value.strip()
+        if not value:
+            raise ValueError("El rol no puede estar vacío")
+        return value
+
+    @field_validator("telefono", mode="before")
+    @classmethod
+    def validate_telefono(cls, value: str | None) -> str | None:
+        return _validate_vinculo_telefono(value)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return _validate_vinculo_email(value)
 
 
 class NotaClienteOut(BaseModel):
@@ -126,6 +240,7 @@ class ClienteDetail(ClienteOut):
     notas: list[NotaClienteOut] = []
     actividades: list[ActividadClienteOut] = []
     acciones: list[AccionAgendadaOut] = []
+    vinculos: list[VinculoOut] = []
 
 
 class ClienteUpdate(BaseModel):

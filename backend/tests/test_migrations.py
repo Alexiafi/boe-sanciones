@@ -35,6 +35,7 @@ def test_migrations_reach_opportunity_head(clean_database):
     assert (revisions / "0005_historico_core.py").exists()
     assert (revisions / "0006_documentos_comerciales.py").exists()
     assert (revisions / "0007_contacto_detallado.py").exists()
+    assert (revisions / "0008_vinculos_y_alertas_cliente.py").exists()
 
 
 @pytest.mark.integration
@@ -85,6 +86,20 @@ def test_migrations_reach_historico_head(clean_database):
 
 
 @pytest.mark.integration
+def test_migrations_reach_vinculos_head(clean_database):
+    inspector = inspect(sync_engine)
+    tables = set(inspector.get_table_names())
+    assert "vinculos_cliente" in tables
+
+    sancionados_columns = {column["name"] for column in inspector.get_columns("sancionados")}
+    assert "vinculo_id" in sancionados_columns
+    notificaciones_columns = {column["name"] for column in inspector.get_columns("notificaciones")}
+    assert "cliente_id" in notificaciones_columns
+    historico_resultados_columns = {column["name"] for column in inspector.get_columns("historico_resultados")}
+    assert "vinculo_id" in historico_resultados_columns
+
+
+@pytest.mark.integration
 def test_downgrade_from_historico_head_round_trips():
     config = _alembic_config()
     command.downgrade(config, "0004_clientes_crm")
@@ -127,7 +142,7 @@ def test_bootstrap_empty_and_legacy_schema_preserves_duplicate_rows():
         rows = connection.execute(
             text("SELECT codigo, origen_clave, estado_oportunidad FROM sancionados ORDER BY id")
         ).mappings().all()
-    assert revision == "0007_contacto_detallado"
+    assert revision == "0008_vinculos_y_alertas_cliente"
     assert [row["codigo"] for row in rows] == ["OP-2025-000001", "OP-2025-000002"]
     assert len({row["origen_clave"] for row in rows}) == 2
     assert {row["estado_oportunidad"] for row in rows} == {"nueva"}

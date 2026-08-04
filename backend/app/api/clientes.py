@@ -15,7 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from app.api.sanciones import _build_url_documento
 from app.config import settings
 from app.database import SyncSessionLocal, get_db
-from app.models.cliente import AccionAgendada, ActividadCliente, Cliente, NotaCliente
+from app.models.cliente import AccionAgendada, ActividadCliente, Cliente, NotaCliente, VinculoCliente
 from app.models.documento import BoeDocumento
 from app.models.documentos_comerciales import DocumentoComercial
 from app.models.historico import HistoricoDoc, HistoricoResultado
@@ -31,6 +31,9 @@ from app.schemas.cliente import (
     NotaClienteCreate,
     NotaClienteOut,
     SancionVinculadaOut,
+    VinculoCreate,
+    VinculoOut,
+    VinculoUpdate,
 )
 from app.schemas.documentos_comerciales import (
     ContratoGenerarRequest,
@@ -45,6 +48,7 @@ from app.schemas.historico import (
     HistoricoExtraerRequest,
     HistoricoResultadoOut,
 )
+from app.services.alertas import ejecutar_radar_clientes
 from app.services.clientes import deuda_pendiente_eur
 from app.services.documentos_comerciales import (
     DatosFaltantesError,
@@ -59,16 +63,29 @@ from app.tasks.historico_extraccion import extraer_historico_task
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
 
 
-def _historico_resultado_dict(resultado: HistoricoResultado, doc: HistoricoDoc, *, hoy: date) -> dict:
+def _historico_resultado_dict(
+    resultado: HistoricoResultado, doc: HistoricoDoc, *, hoy: date, titular: str | None = None
+) -> dict:
     return {
         "id": resultado.id, "cliente_id": resultado.cliente_id, "historico_doc_id": resultado.historico_doc_id,
+        "vinculo_id": resultado.vinculo_id,
         "score": float(resultado.score), "via_match": resultado.via_match, "estado": resultado.estado,
         "extraido": resultado.extraido, "datos_extraidos": resultado.datos_extraidos,
         "created_at": resultado.created_at,
         "boe_id": doc.boe_id, "fuente": doc.fuente, "fecha_publicacion": doc.fecha_publicacion,
         "titulo": doc.titulo, "url_pdf": doc.url_pdf, "url_html": doc.url_html, "url_xml": doc.url_xml,
         "fuera_de_ventana_teu": doc.fuente == "teu" and fuera_de_ventana_teu(doc.fecha_publicacion, hoy=hoy),
+        "titular": titular,
     }
+
+
+def _titular_map(cliente: Cliente, vinculos: list[VinculoCliente]) -> dict[int | None, str]:
+    """Maps a vínculo id (or ``None`` for the client itself) to a display
+    name, for grouping sanciones/histórico by who they actually belong to."""
+    mapa: dict[int | None, str] = {None: cliente.nombre_razon_social}
+    for vinculo in vinculos:
+        mapa[vinculo.id] = vinculo.nombre or f"{cliente.nombre_razon_social} ({vinculo.rol})"
+    return mapa
 
 
 async def _serialise_out(db: AsyncSession, cliente: Cliente) -> ClienteOut:
@@ -124,6 +141,12 @@ async def list_clientes(
 @router.get("/{cliente_id}", response_model=ClienteDetail)
 async def get_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
     cliente = await _get_or_404(db, cliente_id)
+    vinculos_result = await db.execute(
+        select(VinculoCliente).where(VinculoCliente.cliente_id == cliente_id).order_by(VinculoCliente.id)
+    )
+    vinculos = list(vinculos_result.scalars().all())
+    titulares = _titular_map(cliente, vinculos)
+
     sanciones_result = await db.execute(
         select(Sancionado)
         .options(selectinload(Sancionado.documento))
@@ -136,6 +159,7 @@ async def get_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
         doc: BoeDocumento = sancionado.documento
         item.fecha_publicacion = str(doc.fecha_publicacion)
         item.url_documento = _build_url_documento(doc)
+        item.titular = titulares.get(sancionado.vinculo_id, cliente.nombre_razon_social)
         sanciones.append(item)
 
     notas_result = await db.execute(
@@ -153,6 +177,7 @@ async def get_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
     detail.sanciones = sanciones
     detail.notas = [NotaClienteOut.model_validate(item) for item in notas_result.scalars().all()]
     detail.actividades = [ActividadClienteOut.model_validate(item) for item in actividades_result.scalars().all()]
+    detail.vinculos = [VinculoOut.model_validate(item) for item in vinculos]
     detail.acciones = [AccionAgendadaOut.model_validate(item) for item in acciones_result.scalars().all()]
     return detail
 
@@ -232,6 +257,91 @@ async def update_accion(cliente_id: int, accion_id: int, data: AccionAgendadaUpd
     return AccionAgendadaOut.model_validate(accion)
 
 
+@router.get("/{cliente_id}/vinculos", response_model=list[VinculoOut])
+async def list_vinculos(cliente_id: int, db: AsyncSession = Depends(get_db)):
+    await _get_or_404(db, cliente_id)
+    result = await db.execute(
+        select(VinculoCliente).where(VinculoCliente.cliente_id == cliente_id).order_by(VinculoCliente.id)
+    )
+    return [VinculoOut.model_validate(item) for item in result.scalars().all()]
+
+
+@router.post("/{cliente_id}/vinculos", response_model=VinculoOut)
+async def add_vinculo(cliente_id: int, data: VinculoCreate, db: AsyncSession = Depends(get_db)):
+    await _get_or_404(db, cliente_id)
+    if data.cliente_vinculado_id is not None and await db.get(Cliente, data.cliente_vinculado_id) is None:
+        raise HTTPException(status_code=404, detail="cliente_vinculado_id no corresponde a un cliente existente")
+
+    vinculo = VinculoCliente(
+        cliente_id=cliente_id, cliente_vinculado_id=data.cliente_vinculado_id, rol=data.rol,
+        nombre=data.nombre, tipo_persona=data.tipo_persona, identificador=data.identificador,
+        tipo_identificador=data.tipo_identificador, telefono=data.telefono, email=data.email, notas=data.notas,
+    )
+    db.add(vinculo)
+    db.add(ActividadCliente(
+        cliente_id=cliente_id, tipo="sistema",
+        titulo=f"Vínculo añadido: {data.nombre or 'ficha vinculada'} ({data.rol})",
+    ))
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail="Ya existe un vínculo con ese identificador para este cliente."
+        ) from exc
+    await db.refresh(vinculo)
+    return VinculoOut.model_validate(vinculo)
+
+
+@router.patch("/{cliente_id}/vinculos/{vinculo_id}", response_model=VinculoOut)
+async def update_vinculo(cliente_id: int, vinculo_id: int, data: VinculoUpdate, db: AsyncSession = Depends(get_db)):
+    await _get_or_404(db, cliente_id)
+    vinculo = await db.get(VinculoCliente, vinculo_id)
+    if vinculo is None or vinculo.cliente_id != cliente_id:
+        raise HTTPException(status_code=404, detail="Vínculo no encontrado")
+    if "cliente_vinculado_id" in data.model_fields_set and data.cliente_vinculado_id is not None:
+        if await db.get(Cliente, data.cliente_vinculado_id) is None:
+            raise HTTPException(status_code=404, detail="cliente_vinculado_id no corresponde a un cliente existente")
+    for field in data.model_fields_set:
+        setattr(vinculo, field, getattr(data, field))
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail="Ya existe un vínculo con ese identificador para este cliente."
+        ) from exc
+    await db.refresh(vinculo)
+    return VinculoOut.model_validate(vinculo)
+
+
+@router.delete("/{cliente_id}/vinculos/{vinculo_id}", response_model=dict)
+async def delete_vinculo(cliente_id: int, vinculo_id: int, db: AsyncSession = Depends(get_db)):
+    await _get_or_404(db, cliente_id)
+    vinculo = await db.get(VinculoCliente, vinculo_id)
+    if vinculo is None or vinculo.cliente_id != cliente_id:
+        raise HTTPException(status_code=404, detail="Vínculo no encontrado")
+    await db.delete(vinculo)
+    await db.commit()
+    return {"deleted": True}
+
+
+@router.post("/alertas/radar", response_model=dict)
+async def ejecutar_radar_alertas(db: AsyncSession = Depends(get_db)):
+    """Manually trigger the free radar over the historical index (see
+    services/alertas.py). The daily pipeline already runs it automatically at
+    the end of every scraping run — this exists for on-demand use."""
+
+    def _run() -> dict[str, int]:
+        sync_db = SyncSessionLocal()
+        try:
+            return ejecutar_radar_clientes(sync_db)
+        finally:
+            sync_db.close()
+
+    return await run_in_threadpool(_run)
+
+
 @router.post("/{cliente_id}/historico/buscar", response_model=ClienteHistoricoBuscarResponse)
 async def buscar_historico_cliente(
     cliente_id: int, data: ClienteHistoricoBuscarRequest, db: AsyncSession = Depends(get_db)
@@ -247,9 +357,13 @@ async def buscar_historico_cliente(
             if cliente_sync is None:
                 return None
             resultado = buscar_historico(sync_db, cliente_sync, incluir_teu=data.incluir_teu)
+            titulares = _titular_map(cliente_sync, list(cliente_sync.vinculos))
             hoy = date.today()
             items = [
-                _historico_resultado_dict(r, r.documento, hoy=hoy) for r in resultado["resultados"]
+                _historico_resultado_dict(
+                    r, r.documento, hoy=hoy, titular=titulares.get(r.vinculo_id, cliente_sync.nombre_razon_social)
+                )
+                for r in resultado["resultados"]
             ]
             return {"resultados": items, "avisos": resultado["avisos"], "cobertura_teu": resultado["cobertura_teu"]}
         finally:
@@ -267,7 +381,11 @@ async def buscar_historico_cliente(
 
 @router.get("/{cliente_id}/historico", response_model=list[HistoricoResultadoOut])
 async def list_historico_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
-    await _get_or_404(db, cliente_id)
+    cliente = await _get_or_404(db, cliente_id)
+    vinculos_result = await db.execute(
+        select(VinculoCliente).where(VinculoCliente.cliente_id == cliente_id)
+    )
+    titulares = _titular_map(cliente, list(vinculos_result.scalars().all()))
     result = await db.execute(
         select(HistoricoResultado, HistoricoDoc)
         .join(HistoricoDoc, HistoricoResultado.historico_doc_id == HistoricoDoc.id)
@@ -276,7 +394,9 @@ async def list_historico_cliente(cliente_id: int, db: AsyncSession = Depends(get
     )
     hoy = date.today()
     return [
-        HistoricoResultadoOut(**_historico_resultado_dict(resultado, doc, hoy=hoy))
+        HistoricoResultadoOut(**_historico_resultado_dict(
+            resultado, doc, hoy=hoy, titular=titulares.get(resultado.vinculo_id, cliente.nombre_razon_social)
+        ))
         for resultado, doc in result.all()
     ]
 

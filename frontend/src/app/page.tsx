@@ -72,6 +72,7 @@ export default function DashboardPage() {
             <StatCard label="Total sancionados" value={stats.total_sancionados} sub="oportunidades identificadas" />
             <StatCard label="Sancionados hoy" value={stats.sancionados_hoy} sub={`${stats.sancionados_semana.toLocaleString("es-ES")} esta semana`} />
             <StatCard label="Notificaciones" value={stats.notificaciones_sin_leer} sub="alertas pendientes de revisar" />
+            <StatCard label="Alertas de clientes" value={stats.alertas_clientes_sin_leer} sub="nuevas sanciones de tus clientes" />
           </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_.95fr]">

@@ -60,6 +60,12 @@ class Cliente(Base):
     documentos_comerciales: Mapped[list["DocumentoComercial"]] = relationship(  # noqa: F821
         cascade="all, delete-orphan"
     )
+    # foreign_keys pinned to cliente_id only: VinculoCliente.cliente_vinculado_id
+    # is the second, independent FK path to this same table (the holding
+    # case), which would otherwise make this relationship ambiguous.
+    vinculos: Mapped[list["VinculoCliente"]] = relationship(
+        back_populates="cliente", cascade="all, delete-orphan", foreign_keys="VinculoCliente.cliente_id"
+    )
 
 
 class CodigoClienteContador(Base):
@@ -116,3 +122,38 @@ class AccionAgendada(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     cliente: Mapped["Cliente"] = relationship(back_populates="acciones")
+
+
+class VinculoCliente(Base):
+    """A person or company linked to a client account (administrador, conductor,
+    empleado, matriz, filial…). ``rol`` is free text on purpose — Judit decides
+    the taxonomy per case, not us.
+
+    Either ``nombre`` or ``cliente_vinculado_id`` must be set (enforced in the
+    schema, see schemas/cliente.py): a linked entity is either a lightweight
+    profile living entirely inside the parent client's page, or a pointer to
+    another Cliente that already has its own ficha (the holding case — matriz
+    contracts, but a filial with its own Cliente row shows up here too).
+    Sanciones tag themselves to a vinculo via ``Sancionado.vinculo_id``, and
+    historical search results the same way via ``HistoricoResultado.vinculo_id``.
+    """
+
+    __tablename__ = "vinculos_cliente"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes.id"), index=True, nullable=False)
+    cliente_vinculado_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clientes.id"), nullable=True)
+    rol: Mapped[str] = mapped_column(String(100), nullable=False)
+    nombre: Mapped[Optional[str]] = mapped_column(String(500))
+    tipo_persona: Mapped[Optional[str]] = mapped_column(String(20))
+    identificador: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    tipo_identificador: Mapped[Optional[str]] = mapped_column(String(20))
+    telefono: Mapped[Optional[str]] = mapped_column(String(50))
+    email: Mapped[Optional[str]] = mapped_column(String(200))
+    notas: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    cliente: Mapped["Cliente"] = relationship(back_populates="vinculos", foreign_keys=[cliente_id])

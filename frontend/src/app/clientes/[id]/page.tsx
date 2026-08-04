@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, BadgeCheck, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AccionAgendada, ClienteDetail } from "@/lib/types";
+import type { AccionAgendada, ClienteDetail, SancionVinculada } from "@/lib/types";
 import {
   Button,
   Card,
@@ -22,6 +22,18 @@ import {
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { DocumentosBlock } from "./DocumentosBlock";
 import { HistoricoBlock } from "./HistoricoBlock";
+import { VinculosBlock } from "./VinculosBlock";
+
+function agruparPorTitular(sanciones: SancionVinculada[]): [string, SancionVinculada[]][] {
+  const grupos = new Map<string, SancionVinculada[]>();
+  for (const item of sanciones) {
+    const clave = item.titular || "Sin titular";
+    const lista = grupos.get(clave);
+    if (lista) lista.push(item);
+    else grupos.set(clave, [item]);
+  }
+  return Array.from(grupos.entries());
+}
 
 export default function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -181,34 +193,53 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
             <CardTitle>Sanciones vinculadas</CardTitle>
             <div className="mt-4">
               {cliente.sanciones.length ? (
-                <div className="space-y-2">
-                  {cliente.sanciones.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3 text-sm">
-                      <div>
-                        <span className="font-mono text-xs text-on-surface-variant">{item.codigo}</span>
-                        <span className="ml-2 text-on-surface-variant">{item.fecha_publicacion}</span>
-                        {(item.importe_multa_eur ?? item.importe_deuda_eur) != null && (
-                          <span className="ml-2 text-on-surface">{formatCurrency(item.importe_multa_eur ?? item.importe_deuda_eur)}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {item.url_documento && (
-                          <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                            Ver BOE
-                          </a>
-                        )}
-                        <Link href={`/sanciones/${item.id}`} className="text-xs text-primary hover:underline">
-                          Detalle
-                        </Link>
-                      </div>
+                (() => {
+                  const grupos = agruparPorTitular(cliente.sanciones);
+                  const mostrarTitulares = grupos.length > 1;
+                  return (
+                    <div className="space-y-5">
+                      {grupos.map(([titular, items]) => (
+                        <div key={titular}>
+                          {mostrarTitulares && (
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.11em] text-on-surface-variant">
+                              {titular}
+                            </p>
+                          )}
+                          <div className="space-y-2">
+                            {items.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3 text-sm">
+                                <div>
+                                  <span className="font-mono text-xs text-on-surface-variant">{item.codigo}</span>
+                                  <span className="ml-2 text-on-surface-variant">{item.fecha_publicacion}</span>
+                                  {(item.importe_multa_eur ?? item.importe_deuda_eur) != null && (
+                                    <span className="ml-2 text-on-surface">{formatCurrency(item.importe_multa_eur ?? item.importe_deuda_eur)}</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  {item.url_documento && (
+                                    <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                                      Ver BOE
+                                    </a>
+                                  )}
+                                  <Link href={`/sanciones/${item.id}`} className="text-xs text-primary hover:underline">
+                                    Detalle
+                                  </Link>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()
               ) : (
                 <EmptyState title="Sin sanciones vinculadas." />
               )}
             </div>
           </Card>
+
+          <VinculosBlock clienteId={cliente.id} />
 
           <HistoricoBlock clienteId={cliente.id} />
 

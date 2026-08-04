@@ -58,10 +58,16 @@ def clean_database():
         for table in (
             "documentos_comerciales", "contadores_factura",
             "historico_resultados", "historico_backfill_runs",
-            "acciones_agendadas", "actividades_cliente", "notas_cliente", "clientes",
+            # vinculos_cliente.{cliente_id,cliente_vinculado_id} and
+            # notificaciones.cliente_id have no ON DELETE action, so both must
+            # go before clientes; sancionados.vinculo_id and
+            # historico_resultados.vinculo_id are ON DELETE SET NULL, so
+            # deleting vinculos_cliente here needs no separate null-out step.
+            "acciones_agendadas", "actividades_cliente", "notas_cliente", "vinculos_cliente",
+            "notificaciones", "clientes",
             "codigo_cliente_contadores",
             "enriquecimiento_intentos", "enriquecimiento_cache",
-            "notificaciones", "seguimientos", "sancionados", "boe_documentos",
+            "seguimientos", "sancionados", "boe_documentos",
             "historico_docs",
             "scraping_runs", "codigo_oportunidad_contadores",
         ):

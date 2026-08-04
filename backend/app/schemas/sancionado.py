@@ -194,6 +194,7 @@ class NotificacionOut(BaseModel):
     mensaje: str | None = None
     leida: bool
     sancionado_id: int | None = None
+    cliente_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

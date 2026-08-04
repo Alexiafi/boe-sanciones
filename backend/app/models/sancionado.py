@@ -76,6 +76,14 @@ class Sancionado(Base):
     # relationship ambiguous — see cliente.py's comment on that column.
     cliente_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("clientes.id"), nullable=True)
 
+    # Which person/company within the client account this sanction belongs to
+    # (session 4 — vínculos). Null means it belongs to the client itself, not
+    # to one of their linked administradores/conductores/filiales. ON DELETE
+    # SET NULL: removing a vínculo must not delete the sanction, just detach it.
+    vinculo_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("vinculos_cliente.id", ondelete="SET NULL"), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

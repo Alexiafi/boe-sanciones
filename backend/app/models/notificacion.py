@@ -16,6 +16,10 @@ class Notificacion(Base):
     mensaje: Mapped[Optional[str]] = mapped_column(Text)
     leida: Mapped[bool] = mapped_column(Boolean, default=False)
     sancionado_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sancionados.id"), nullable=True)
+    # Set whenever the notification concerns an existing client (new sanction
+    # for a client or one of their vínculos) — what the "Solo mis clientes"
+    # filter in /notificaciones matches on.
+    cliente_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clientes.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     sancionado: Mapped[Optional["Sancionado"]] = relationship(back_populates="notificaciones")  # noqa: F821

@@ -138,6 +138,12 @@ class HistoricoResultado(Base):
     historico_doc_id: Mapped[int] = mapped_column(
         ForeignKey("historico_docs.id", ondelete="CASCADE"), nullable=False
     )
+    # Which vínculo (administrador/conductor/filial…) this match belongs to.
+    # Null means it matched the client's own identifiers/name. ON DELETE SET
+    # NULL: removing a vínculo must not delete previously found matches.
+    vinculo_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("vinculos_cliente.id", ondelete="SET NULL"), nullable=True
+    )
     score: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False, default=0)
     via_match: Mapped[str] = mapped_column(String(24), nullable=False)
     detalle_match: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)

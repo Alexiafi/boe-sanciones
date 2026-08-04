@@ -133,10 +133,12 @@ export function HistoricoBlock({ clienteId }: { clienteId: number }) {
                       <p className="font-medium text-on-surface">{item.titulo || item.boe_id}</p>
                       <p className="text-xs text-on-surface-variant">
                         {formatDate(item.fecha_publicacion)} · {item.fuente?.toUpperCase()} · vía {item.via_match} · score {item.score.toFixed(2)}
+                        {item.vinculo_id && item.titular && ` · ${item.titular}`}
                       </p>
                     </div>
                   </label>
                   <div className="flex shrink-0 flex-col items-end gap-1">
+                    {item.vinculo_id && item.titular && <Chip label={item.titular} tone="neutral" />}
                     {item.extraido && <Chip label="Extraído" tone="success" />}
                     {item.fuera_de_ventana_teu && <span className="text-[10px] uppercase text-on-surface-variant">Solo acumulado</span>}
                     {(item.url_pdf || item.url_html) && (

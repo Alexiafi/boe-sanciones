@@ -103,6 +103,23 @@ export interface SancionVinculada {
   importe_multa_eur: number | null;
   importe_deuda_eur: number | null;
   url_documento: string | null;
+  vinculo_id: number | null;
+  titular: string | null;
+}
+
+export interface VinculoCliente {
+  id: number;
+  cliente_id: number;
+  cliente_vinculado_id: number | null;
+  rol: string;
+  nombre: string | null;
+  tipo_persona: "fisica" | "juridica" | null;
+  identificador: string | null;
+  tipo_identificador: string | null;
+  telefono: string | null;
+  email: string | null;
+  notas: string | null;
+  created_at: string;
 }
 
 export interface NotaCliente {
@@ -139,12 +156,14 @@ export interface ClienteDetail extends Cliente {
   notas: NotaCliente[];
   actividades: ActividadCliente[];
   acciones: AccionAgendada[];
+  vinculos: VinculoCliente[];
 }
 
 export interface HistoricoResultado {
   id: number;
   cliente_id: number;
   historico_doc_id: number;
+  vinculo_id: number | null;
   score: number;
   via_match: "cif" | "dni" | "matricula" | "nombre" | "nombre_dni_parcial" | "teu_publico";
   estado: "nuevo" | "confirmado" | "descartado";
@@ -159,6 +178,7 @@ export interface HistoricoResultado {
   url_html: string | null;
   url_xml: string | null;
   fuera_de_ventana_teu: boolean;
+  titular: string | null;
 }
 
 export interface CoberturaTeu {
@@ -264,6 +284,7 @@ export interface Notificacion {
   mensaje: string | null;
   leida: boolean;
   sancionado_id: number | null;
+  cliente_id: number | null;
   created_at: string;
 }
 
@@ -292,6 +313,7 @@ export interface DashboardStats {
   sancionados_hoy: number;
   sancionados_semana: number;
   notificaciones_sin_leer: number;
+  alertas_clientes_sin_leer: number;
   ultimo_scraping: {
     fecha: string | null;
     status: string | null;
