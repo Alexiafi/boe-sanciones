@@ -46,7 +46,7 @@ def _deps(*, fetch_sumario=None, sleep=None):
     return backfill_module.BackfillDependencies(
         fetch_sumario=fetch_sumario or (lambda d: SUMARIOS.get(d, [])),
         flatten_sumario=lambda payload, d: payload,
-        fetch_text=lambda doc: (TEXTOS.get(doc["identificador"], ""), "xml"),
+        fetch_text=lambda doc: (TEXTOS.get(doc["identificador"], ""), "xml", None),
         sleep=sleep or (lambda _s: None),
     )
 

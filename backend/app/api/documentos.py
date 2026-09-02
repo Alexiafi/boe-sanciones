@@ -6,15 +6,40 @@ import math
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.archivo import DocumentoArchivo
 from app.models.documento import BoeDocumento
 from app.models.sancionado import Sancionado
 from app.schemas.documento import BoeDocumentoDetail, BoeDocumentoOut
 
 router = APIRouter(prefix="/api/documentos", tags=["documentos"])
+
+_EXTENSIONES_ARCHIVO = {
+    "application/pdf": ".pdf",
+    "text/html": ".html",
+    "text/xml": ".xml",
+    "application/xml": ".xml",
+}
+
+
+def _respuesta_copia_local(archivo: DocumentoArchivo | None, texto_fallback: str | None, boe_id: str) -> Response:
+    """Serve the archived original bytes when they exist, the stored plain
+    text otherwise. The first is what keeps a removed BOE/TEU document
+    viewable with its original format."""
+    if archivo is not None:
+        extension = _EXTENSIONES_ARCHIVO.get(archivo.content_type, ".bin")
+        return Response(
+            content=archivo.contenido,
+            media_type=archivo.content_type,
+            headers={"Content-Disposition": f'inline; filename="{boe_id}{extension}"'},
+        )
+    if texto_fallback:
+        return Response(content=texto_fallback, media_type="text/plain; charset=utf-8")
+    raise HTTPException(status_code=404, detail="No hay copia local de este documento")
 
 
 @router.get("", response_model=dict)
@@ -71,3 +96,14 @@ async def get_documento(doc_id: int, db: AsyncSession = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return BoeDocumentoDetail.model_validate(doc)
+
+
+@router.get("/{doc_id}/archivo")
+async def get_documento_archivo(doc_id: int, db: AsyncSession = Depends(get_db)):
+    doc = (await db.execute(select(BoeDocumento).where(BoeDocumento.id == doc_id))).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    archivo = (await db.execute(
+        select(DocumentoArchivo).where(DocumentoArchivo.boe_id == doc.boe_id)
+    )).scalar_one_or_none()
+    return _respuesta_copia_local(archivo, doc.texto_plano, doc.boe_id)

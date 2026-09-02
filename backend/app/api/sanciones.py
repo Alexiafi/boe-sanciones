@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.archivo import DocumentoArchivo
 from app.models.cliente import Cliente
 from app.models.documento import BoeDocumento
 from app.models.enriquecimiento import EnriquecimientoIntento
@@ -48,7 +49,15 @@ def _build_url_documento(doc: BoeDocumento) -> str:
     return f"{BOE_BASE}/diario_boe/txt.php?id={doc.boe_id}"
 
 
-def _serialise(sancionado: Sancionado) -> SancionadoOut:
+async def _boe_ids_archivados(db: AsyncSession, docs: list[BoeDocumento]) -> set[str]:
+    boe_ids = [doc.boe_id for doc in docs if doc.boe_id]
+    if not boe_ids:
+        return set()
+    result = await db.execute(select(DocumentoArchivo.boe_id).where(DocumentoArchivo.boe_id.in_(boe_ids)))
+    return set(result.scalars().all())
+
+
+def _serialise(sancionado: Sancionado, *, archivado: bool = False) -> SancionadoOut:
     item = SancionadoOut.model_validate(sancionado)
     doc = sancionado.documento
     item.boe_id = doc.boe_id
@@ -56,6 +65,7 @@ def _serialise(sancionado: Sancionado) -> SancionadoOut:
     item.titulo_documento = doc.titulo
     item.url_html = doc.url_html
     item.url_documento = _build_url_documento(doc)
+    item.tiene_copia_local = archivado or bool(doc.texto_plano)
     return item
 
 
@@ -129,8 +139,9 @@ async def list_sanciones(
     count_statement = select(func.count(Sancionado.id)).join(Sancionado.documento).where(and_(*conditions))
     total = (await db.execute(count_statement)).scalar_one()
     results = (await db.execute(statement.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    archivados = await _boe_ids_archivados(db, [item.documento for item in results])
     return {
-        "items": [_serialise(item).model_dump() for item in results],
+        "items": [_serialise(item, archivado=item.documento.boe_id in archivados).model_dump() for item in results],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -144,7 +155,10 @@ async def get_sancion(sancionado_id: int, db: AsyncSession = Depends(get_db)):
     sancionado = result.scalar_one_or_none()
     if not sancionado:
         raise HTTPException(status_code=404, detail="Sancionado no encontrado")
-    detail = SancionadoDetail.model_validate(_serialise(sancionado).model_dump())
+    archivados = await _boe_ids_archivados(db, [sancionado.documento])
+    detail = SancionadoDetail.model_validate(
+        _serialise(sancionado, archivado=sancionado.documento.boe_id in archivados).model_dump()
+    )
     detail.seguimientos = [SeguimientoOut.model_validate(item) for item in sancionado.seguimientos]
     return detail
 
@@ -187,7 +201,10 @@ async def update_sancion(sancionado_id: int, data: SancionadoUpdate, db: AsyncSe
         .options(selectinload(Sancionado.documento), selectinload(Sancionado.seguimientos))
         .where(Sancionado.id == sancionado_id)
     )).scalar_one()
-    detail = SancionadoDetail.model_validate(_serialise(refreshed).model_dump())
+    archivados = await _boe_ids_archivados(db, [refreshed.documento])
+    detail = SancionadoDetail.model_validate(
+        _serialise(refreshed, archivado=refreshed.documento.boe_id in archivados).model_dump()
+    )
     detail.seguimientos = [SeguimientoOut.model_validate(item) for item in refreshed.seguimientos]
     return detail
 

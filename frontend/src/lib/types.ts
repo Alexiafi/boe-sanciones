@@ -52,6 +52,7 @@ export interface Sancionado {
   titulo_documento: string | null;
   url_html: string | null;
   url_documento: string | null;
+  tiene_copia_local: boolean;
   seguimientos?: Seguimiento[];
 }
 
@@ -213,6 +214,7 @@ export interface HistoricoDocItem {
   url_xml: string | null;
   origen_indexado: string;
   fuera_de_ventana_teu: boolean;
+  tiene_copia_local: boolean;
 }
 
 export interface HistoricoCobertura {

@@ -153,6 +153,7 @@ export const api = {
       const qs = new URLSearchParams(params).toString();
       return fetchAPI<Record<string, unknown>>(`/api/historico?${qs}`);
     },
+    archivoUrl: (id: number) => `${API_BASE}/api/historico/${id}/archivo`,
     cobertura: () => fetchAPI<Record<string, unknown>>("/api/historico/cobertura"),
     consulta: (data: { cif?: string; dni?: string; matricula?: string; nombre?: string; incluir_teu?: boolean }) =>
       fetchAPI<Record<string, unknown>>("/api/historico/consulta", {
@@ -173,6 +174,10 @@ export const api = {
         body: JSON.stringify(data),
       }),
     backfillRuns: () => fetchAPI<Record<string, unknown>[]>("/api/historico/backfill/runs"),
+  },
+
+  documentos: {
+    archivoUrl: (id: number) => `${API_BASE}/api/documentos/${id}/archivo`,
   },
 
   documentosComerciales: {

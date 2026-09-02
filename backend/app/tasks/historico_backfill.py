@@ -32,7 +32,8 @@ from app.models.historico import HistoricoBackfillRun
 from app.services.boe_client import fetch_document_content, fetch_document_pdf, fetch_sumario, flatten_sumario
 from app.services.classifier import classify_document, should_skip_section, verify_with_body
 from app.services.historico.indexado import upsert_from_doc_data
-from app.services.parser import extract_text_from_document
+from app.services.parser import RawDocument, extract_text_from_document
+from app.services.archivo import guardar_archivo
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +51,18 @@ class BackfillNoPermitido(ValueError):
 class BackfillDependencies:
     fetch_sumario: Callable[[date], dict] = fetch_sumario
     flatten_sumario: Callable[[dict, date], list[dict[str, Any]]] = flatten_sumario
-    fetch_text: Callable[[dict[str, Any]], tuple[str, str]] | None = None
+    fetch_text: Callable[[dict[str, Any]], tuple[str, str, RawDocument | None]] | None = None
     sleep: Callable[[float], None] = time.sleep
 
 
-def _fetch_text_default(doc_data: dict[str, Any]) -> tuple[str, str]:
+def _fetch_text_default(doc_data: dict[str, Any]) -> tuple[str, str, RawDocument | None]:
     return extract_text_from_document(
         doc_data.get("url_xml"), doc_data.get("url_html"), doc_data.get("url_pdf"),
         fetch_fn=fetch_document_content, fetch_pdf_fn=fetch_document_pdf,
     )
 
 
-def _get_text(deps: BackfillDependencies, doc_data: dict[str, Any]) -> tuple[str, str]:
+def _get_text(deps: BackfillDependencies, doc_data: dict[str, Any]) -> tuple[str, str, RawDocument | None]:
     return (deps.fetch_text or _fetch_text_default)(doc_data)
 
 
@@ -202,11 +203,18 @@ def run_backfill(
                 if not candidato:
                     continue
                 run.docs_candidatos += 1
-                texto, _fuente = _get_text(deps, doc_data)
+                texto, _fuente, raw = _get_text(deps, doc_data)
                 if texto:
                     body_ok, _signals = verify_with_body(texto)
                     if not body_ok:
                         continue
+                if raw:
+                    # Same archive discipline as the daily pipeline: the copy
+                    # is what survives the source removing the document.
+                    guardar_archivo(
+                        db, boe_id=doc_data["identificador"], content_type=raw[0],
+                        contenido=raw[1], url_origen=raw[2],
+                    )
                 resultado = upsert_from_doc_data(
                     db, doc_data, texto, fuente="boe", origen_indexado="backfill",
                     familia_sancionadora=familia, confidence=confidence,

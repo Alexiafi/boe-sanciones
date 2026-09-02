@@ -38,7 +38,7 @@ def test_pipeline_fixture_is_cost_free_then_idempotent(monkeypatch, clean_databa
         return ResultadoExtraccion(afectados=[AfectadoExtraido(identificador="A-1", localidad="Sevilla", importe_deuda_eur=80)])
 
     deps = scraping.PipelineDependencies(
-        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto de fixture", "xml"),
+        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto de fixture", "xml", None),
         extractor=fake_extractor, send_digest=lambda *_: None, notify=lambda *_: None,
         fetch_teu_index=lambda _: "", parse_teu_index=lambda *_: [], filter_teu_entries=lambda _: [], fetch_teu_pdf=lambda _: b"",
     )
@@ -102,7 +102,7 @@ def test_pipeline_auto_assigns_new_sancion_to_existing_client(monkeypatch, clean
         return ResultadoExtraccion(afectados=[AfectadoExtraido(identificador="B12345678", nombre="Acme Logistica SL")])
 
     deps = scraping.PipelineDependencies(
-        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto de fixture", "xml"),
+        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto de fixture", "xml", None),
         extractor=fake_extractor, send_digest=lambda *_: None, notify=lambda *_: None,
         fetch_teu_index=lambda _: "", parse_teu_index=lambda *_: [], filter_teu_entries=lambda _: [], fetch_teu_pdf=lambda _: b"",
     )
@@ -146,7 +146,7 @@ def test_disabled_extraction_never_constructs_openai_client(monkeypatch, clean_d
     monkeypatch.setattr(scraping, "classify_document", lambda _: (True, ["fixture"], 0.95, "sancion_firme"))
     monkeypatch.setattr(scraping, "verify_with_body", lambda _: (True, ["fixture"]))
     deps = scraping.PipelineDependencies(
-        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto", "xml"),
+        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto", "xml", None),
         send_digest=lambda *_: None, notify=lambda *_: None,
         fetch_teu_index=lambda _: "", parse_teu_index=lambda *_: [], filter_teu_entries=lambda _: [], fetch_teu_pdf=lambda _: b"",
     )
@@ -185,7 +185,7 @@ def test_extraction_limit_and_run_traceability(monkeypatch, clean_database):
         return ResultadoExtraccion(afectados=[AfectadoExtraido(identificador=f"ID-{len(calls)}", importe_deuda_eur=10)])
 
     deps = scraping.PipelineDependencies(
-        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: documents, fetch_text=lambda _: ("texto", "xml"),
+        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: documents, fetch_text=lambda _: ("texto", "xml", None),
         extractor=fake_extractor, send_digest=lambda *_: None, notify=lambda *_: None,
         fetch_teu_index=lambda _: "", parse_teu_index=lambda *_: [], filter_teu_entries=lambda _: [], fetch_teu_pdf=lambda _: b"",
     )
@@ -217,7 +217,7 @@ def test_scheduler_run_has_no_extraction_provider(monkeypatch, clean_database):
     monkeypatch.setattr(settings, "openai_extraction_enabled", True)
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     deps = scraping.PipelineDependencies(
-        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto", "xml"),
+        fetch_sumario=lambda _: {}, flatten_sumario=lambda *_: [document], fetch_text=lambda _: ("texto", "xml", None),
         send_digest=lambda *_: None, notify=lambda *_: None,
         fetch_teu_index=lambda _: "", parse_teu_index=lambda *_: [], filter_teu_entries=lambda _: [], fetch_teu_pdf=lambda _: b"",
     )

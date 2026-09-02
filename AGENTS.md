@@ -40,13 +40,17 @@ docker compose up -d --build postgres migrate backend frontend
   docker compose exec backend alembic revision --autogenerate -m "..."
   docker compose exec backend alembic upgrade head
   ```
- Current head: `0008_vinculos_y_alertas_cliente`. Chain: `0001_legacy_baseline` → `0002_opportunity_core` →
+ Current head: `0009_documento_archivos`. Chain: `0001_legacy_baseline` → `0002_opportunity_core` →
  `0003_enrichment_core` → `0004_clientes_crm` → `0005_historico_core` → `0006_documentos_comerciales` →
- `0007_contacto_detallado` → `0008_vinculos_y_alertas_cliente`.
+ `0007_contacto_detallado` → `0008_vinculos_y_alertas_cliente` → `0009_documento_archivos`.
 - **Celery pipelines**:
-  - `app.tasks.scraping.run_daily_scraping` — BOE sumario → rule-based classifier → body verification →
-    OpenAI structured extraction (gated) → TEU scraping → free daily accumulation into the historical index.
-    Beat schedule: 07:30 and 19:30 Europe/Madrid. Idempotent per `(fecha_boe, tipo="diario")`.
+ - `app.tasks.scraping.run_daily_scraping` — BOE sumario → rule-based classifier → body verification →
+ OpenAI structured extraction (gated) → TEU scraping → free daily accumulation into the historical index.
+ Every persisted document's original bytes (PDF/HTML/XML) are archived once into `documento_archivos`
+ (see `app/services/archivo.py`), so it stays viewable after the BOE/TEU removes it; served via
+ `GET /api/documentos/{id}/archivo` and `GET /api/historico/{id}/archivo` with the stored plain text as
+ fallback.
+ Beat schedule: 07:30 and 19:30 Europe/Madrid. Idempotent per `(fecha_boe, tipo="diario")`.
   - `app.tasks.enrichment.*` — on-demand/batch contact enrichment (session 2). Gated by
     `ENRICHMENT_ENABLED` + a configured provider.
   - `app.tasks.historico_backfill.run_backfill_task` — **manual only, never in Celery beat**. Double-gated:

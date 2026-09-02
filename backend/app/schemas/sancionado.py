@@ -63,6 +63,9 @@ class SancionadoOut(BaseModel):
     titulo_documento: str | None = None
     url_html: str | None = None
     url_documento: str | None = None
+    # True when the original bytes or at least the extracted plain text are
+    # stored locally and can be served even if the BOE removed the document.
+    tiene_copia_local: bool = False
 
     model_config = {"from_attributes": True}
 

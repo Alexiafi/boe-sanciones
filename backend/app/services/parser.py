@@ -78,15 +78,20 @@ def pdf_to_text(pdf_bytes: bytes) -> str:
         return ""
 
 
+# (content_type, bytes, url_origen) of the document actually downloaded, so
+# callers can archive the original bytes (see services/archivo.py).
+RawDocument = tuple[str, bytes, str]
+
+
 def extract_text_from_document(
     url_xml: str | None,
     url_html: str | None,
     url_pdf: str | None,
     fetch_fn,
     fetch_pdf_fn,
-) -> tuple[str, str]:
+) -> tuple[str, str, RawDocument | None]:
     """
-    Try XML first, then HTML, then PDF. Returns (text, source).
+    Try XML first, then HTML, then PDF. Returns (text, source, raw).
     fetch_fn(url) -> str, fetch_pdf_fn(url) -> bytes
     """
     if url_xml:
@@ -94,7 +99,7 @@ def extract_text_from_document(
             raw = fetch_fn(url_xml)
             text = xml_to_text(raw)
             if text.strip():
-                return text, "xml"
+                return text, "xml", ("text/xml", raw.encode("utf-8", errors="ignore"), url_xml)
         except Exception:
             logger.warning("Failed to fetch/parse XML: %s", url_xml)
 
@@ -103,7 +108,7 @@ def extract_text_from_document(
             raw = fetch_fn(url_html)
             text = html_to_text(raw)
             if text.strip():
-                return text, "html"
+                return text, "html", ("text/html", raw.encode("utf-8", errors="ignore"), url_html)
         except Exception:
             logger.warning("Failed to fetch/parse HTML: %s", url_html)
 
@@ -112,8 +117,8 @@ def extract_text_from_document(
             raw_bytes = fetch_pdf_fn(url_pdf)
             text = pdf_to_text(raw_bytes)
             if text.strip():
-                return text, "pdf"
+                return text, "pdf", ("application/pdf", raw_bytes, url_pdf)
         except Exception:
             logger.warning("Failed to fetch/parse PDF: %s", url_pdf)
 
-    return "", "none"
+    return "", "none", None

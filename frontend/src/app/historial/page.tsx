@@ -134,13 +134,26 @@ export default function HistorialPage() {
                           <EstadoChipPrescripcion tier={tier} />
                         </td>
                         <td className="px-4 py-2.5">
-                          {doc.url_pdf || doc.url_html ? (
-                            <a href={doc.url_pdf || doc.url_html || "#"} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                              Ver original
-                            </a>
-                          ) : (
-                            "—"
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {doc.url_pdf || doc.url_html ? (
+                              <a href={doc.url_pdf || doc.url_html || "#"} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                                Ver original
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                            {doc.tiene_copia_local && (
+                              <a
+                                href={api.historico.archivoUrl(doc.id)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Copia guardada en nuestra base de datos; disponible aunque la fuente haya retirado el original"
+                                className="text-xs font-semibold text-primary hover:underline"
+                              >
+                                Copia local
+                              </a>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

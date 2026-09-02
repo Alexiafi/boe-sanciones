@@ -77,7 +77,10 @@ class Settings(BaseSettings):
     historico_backfill_max_dias_por_lote: int = Field(default=5, ge=1, le=60)
     historico_backfill_max_docs_por_lote: int = Field(default=200, ge=1, le=5_000)
     historico_backfill_delay_s: float = Field(default=1.0, ge=0)
-    historico_backfill_store_text: bool = False
+    # Storing the plain text (and now the raw bytes, see services/archivo.py)
+    # costs nothing and is exactly what keeps a document usable after the
+    # source removes it — so it defaults to on.
+    historico_backfill_store_text: bool = True
     historico_indexado_diario_enabled: bool = True
     historico_extraccion_max_docs_por_peticion: int = Field(default=3, ge=0)
 

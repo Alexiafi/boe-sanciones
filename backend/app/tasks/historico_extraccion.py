@@ -27,7 +27,8 @@ from app.models.historico import HistoricoDoc, HistoricoResultado
 from app.models.scraping_run import ScrapingRun
 from app.services.boe_client import fetch_document_content, fetch_document_pdf
 from app.services.extractor import ResultadoExtraccion, extract_sanctions
-from app.services.parser import extract_text_from_document
+from app.services.parser import RawDocument, extract_text_from_document
+from app.services.archivo import guardar_archivo
 from app.tasks.scraping import PaidExtractionNotAllowed
 
 logger = logging.getLogger(__name__)
@@ -36,10 +37,10 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class ExtraccionHistoricaDependencies:
     extractor: Callable[[str, str], ResultadoExtraccion] = extract_sanctions
-    fetch_text: Callable[[HistoricoDoc], tuple[str, str]] | None = None
+    fetch_text: Callable[[HistoricoDoc], tuple[str, str, RawDocument | None]] | None = None
 
 
-def _fetch_text_default(doc: HistoricoDoc) -> tuple[str, str]:
+def _fetch_text_default(doc: HistoricoDoc) -> tuple[str, str, RawDocument | None]:
     return extract_text_from_document(
         doc.url_xml, doc.url_html, doc.url_pdf,
         fetch_fn=fetch_document_content, fetch_pdf_fn=fetch_document_pdf,
@@ -88,7 +89,14 @@ def extraer_historico(
             doc = resultado.documento
             texto = doc.texto_plano
             if not texto:
-                texto, _fuente = (deps.fetch_text or _fetch_text_default)(doc)
+                texto, _fuente, raw = (deps.fetch_text or _fetch_text_default)(doc)
+                if raw:
+                    # Re-fetching means the doc had no stored text: archive the
+                    # bytes now so the next time never depends on the source.
+                    guardar_archivo(
+                        db, boe_id=doc.boe_id, content_type=raw[0],
+                        contenido=raw[1], url_origen=raw[2],
+                    )
             try:
                 extraido: ResultadoExtraccion = deps.extractor(texto or "", doc.titulo)
                 resultado.datos_extraidos = extraido.model_dump(mode="json")

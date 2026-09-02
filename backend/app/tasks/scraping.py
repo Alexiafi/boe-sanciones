@@ -26,7 +26,8 @@ from app.services.historico.indexado import upsert_from_doc_data
 from app.services.historico.patterns import normalizar_identificador
 from app.services.notifier import create_inapp_notification, send_email_digest
 from app.services.oportunidades import upsert_afectado
-from app.services.parser import extract_text_from_document, pdf_to_text
+from app.services.parser import RawDocument, extract_text_from_document, pdf_to_text
+from app.services.archivo import guardar_archivo
 from app.services.teu_client import MAX_TEU_PER_RUN, fetch_teu_index, fetch_teu_pdf, filter_relevant_teu_entries, parse_teu_index
 from app.services.vinculos import asignar_sancion_a_cliente, indice_identificadores
 
@@ -41,7 +42,7 @@ class PaidExtractionNotAllowed(ValueError):
 class PipelineDependencies:
     fetch_sumario: Callable[[date], dict] = fetch_sumario
     flatten_sumario: Callable[[dict, date], list[dict[str, Any]]] = flatten_sumario
-    fetch_text: Callable[[dict[str, Any]], tuple[str, str]] | None = None
+    fetch_text: Callable[[dict[str, Any]], tuple[str, str, RawDocument | None]] | None = None
     extractor: Callable[[str, str], ResultadoExtraccion] = extract_sanctions
     send_digest: Callable[[list, str], None] = send_email_digest
     notify: Callable[[Any, Any], None] = create_inapp_notification
@@ -51,14 +52,14 @@ class PipelineDependencies:
     fetch_teu_pdf: Callable[[str], bytes] = fetch_teu_pdf
 
 
-def _fetch_text(doc_data: dict[str, Any]) -> tuple[str, str]:
+def _fetch_text(doc_data: dict[str, Any]) -> tuple[str, str, RawDocument | None]:
     return extract_text_from_document(
         doc_data.get("url_xml"), doc_data.get("url_html"), doc_data.get("url_pdf"),
         fetch_fn=fetch_document_content, fetch_pdf_fn=fetch_document_pdf,
     )
 
 
-def _get_text(deps: PipelineDependencies, doc_data: dict[str, Any]) -> tuple[str, str]:
+def _get_text(deps: PipelineDependencies, doc_data: dict[str, Any]) -> tuple[str, str, RawDocument | None]:
     return (deps.fetch_text or _fetch_text)(doc_data)
 
 
@@ -154,6 +155,7 @@ def _process_candidate(db, run, doc_data: dict[str, Any], text_value: str, sourc
             upsert_from_doc_data(
                 db, doc_data, text_value or document.texto_plano, fuente=fuente_historico,
                 origen_indexado="diario", familia_sancionadora=familia, confidence=confidence,
+                guardar_texto=True,
             )
         except Exception:
             logger.exception("No se pudo indexar %s en el histórico diario", doc_data.get("identificador"))
@@ -185,6 +187,12 @@ def _scrape_teu(db, run, target_date: date, allow_extraction: bool, limit: int, 
         content = pdf_to_text(pdf)
         if not content:
             continue
+        # The TEU removes notifications from its public site after ~90 days;
+        # archive the PDF bytes so the original stays viewable afterwards.
+        guardar_archivo(
+            db, boe_id=entry["identificador"], content_type="application/pdf",
+            contenido=pdf, url_origen=entry["url_pdf"],
+        )
         document = existing or BoeDocumento(
             boe_id=entry["identificador"], fecha_publicacion=entry["fecha_publicacion"],
             seccion_codigo="TEU", seccion_nombre="Tablón Edictal Único",
@@ -269,11 +277,20 @@ def run_scraping(fecha_str: str | None = None, force: bool = False, permitir_ext
             if not doc_data.get("identificador") or should_skip_section(doc_data):
                 continue
             title_candidate, title_rules, title_confidence, familia = classify_document(doc_data)
-            text_value, source = _get_text(deps, doc_data)
+            text_value, source, raw = _get_text(deps, doc_data)
             stats["scanned"] += 1
             body_ok, body_rules = verify_with_body(text_value) if text_value else (False, [])
             if not title_candidate and not body_ok:
                 continue
+            if raw:
+                # Archive the original bytes the moment we decide to persist
+                # the document: BOE notification supplements and the TEU
+                # remove documents after a period, and this copy is what keeps
+                # the original viewable afterwards.
+                guardar_archivo(
+                    db, boe_id=doc_data["identificador"], content_type=raw[0],
+                    contenido=raw[1], url_origen=raw[2],
+                )
             rules = title_rules + body_rules if title_candidate else body_rules
             confidence = max(title_confidence, 0.85 if len(body_rules) >= 3 else 0.65) if title_candidate else (0.85 if len(body_rules) >= 3 else 0.65)
             _process_candidate(db, run, doc_data, text_value, source, rules, confidence, familia or _guess_familia_from_section(doc_data), allow_extraction, limit, deps, new_sancionados, stats, force)

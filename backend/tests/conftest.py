@@ -68,7 +68,7 @@ def clean_database():
             "codigo_cliente_contadores",
             "enriquecimiento_intentos", "enriquecimiento_cache",
             "seguimientos", "sancionados", "boe_documentos",
-            "historico_docs",
+            "historico_docs", "documento_archivos",
             "scraping_runs", "codigo_oportunidad_contadores",
         ):
             session.execute(text(f"DELETE FROM {table}"))

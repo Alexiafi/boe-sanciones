@@ -359,6 +359,17 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
                 Ver documento oficial →
               </a>
             )}
+            {sancion.tiene_copia_local && (
+              <a
+                href={api.documentos.archivoUrl(sancion.boe_document_id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Copia guardada en nuestra base de datos; disponible aunque el BOE haya retirado el original"
+                className="ml-2 mt-3 inline-block rounded-lg border border-outline-variant bg-white px-4 py-2.5 text-sm font-semibold text-primary shadow-sm hover:border-secondary hover:bg-surface-bright"
+              >
+                Ver copia archivada
+              </a>
+            )}
           </Card>
         </aside>
       </div>

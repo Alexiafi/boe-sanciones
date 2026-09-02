@@ -19,6 +19,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.database import SyncSessionLocal, get_db
+from app.api.documentos import _respuesta_copia_local
+from app.models.archivo import DocumentoArchivo
 from app.models.historico import HistoricoBackfillRun, HistoricoDoc
 from app.schemas.historico import (
     BackfillPlanOut,
@@ -161,6 +163,13 @@ async def list_historico(
     results = (await db.execute(statement.offset((page - 1) * page_size).limit(page_size))).scalars().all()
 
     hoy = date.today()
+    archivados = set(
+        (await db.execute(
+            select(DocumentoArchivo.boe_id).where(
+                DocumentoArchivo.boe_id.in_([d.boe_id for d in results])
+            )
+        )).scalars().all()
+    ) if results else set()
     items = [
         {
             "id": d.id, "boe_id": d.boe_id, "fuente": d.fuente,
@@ -168,6 +177,7 @@ async def list_historico(
             "departamento_nombre": d.departamento_nombre, "url_pdf": d.url_pdf, "url_html": d.url_html,
             "url_xml": d.url_xml, "origen_indexado": d.origen_indexado,
             "fuera_de_ventana_teu": d.fuente == "teu" and fuera_de_ventana_teu(d.fecha_publicacion, hoy=hoy),
+            "tiene_copia_local": d.boe_id in archivados or bool(d.texto_plano or d.extracto),
         }
         for d in results
     ]
@@ -175,3 +185,14 @@ async def list_historico(
         "items": items, "total": total, "page": page, "page_size": page_size,
         "pages": -(-total // page_size) if total else 0,
     }
+
+
+@router.get("/{doc_id}/archivo")
+async def get_historico_archivo(doc_id: int, db: AsyncSession = Depends(get_db)):
+    doc = (await db.execute(select(HistoricoDoc).where(HistoricoDoc.id == doc_id))).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    archivo = (await db.execute(
+        select(DocumentoArchivo).where(DocumentoArchivo.boe_id == doc.boe_id)
+    )).scalar_one_or_none()
+    return _respuesta_copia_local(archivo, doc.texto_plano or doc.extracto, doc.boe_id)

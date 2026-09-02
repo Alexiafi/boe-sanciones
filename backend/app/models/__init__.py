@@ -6,6 +6,7 @@ from app.models.cliente import (
     NotaCliente,
     VinculoCliente,
 )
+from app.models.archivo import DocumentoArchivo
 from app.models.codigo_oportunidad import CodigoOportunidadContador
 from app.models.documento import BoeDocumento
 from app.models.documentos_comerciales import ContadorFactura, DocumentoComercial, PlantillaDocumento
@@ -24,6 +25,7 @@ __all__ = [
     "CodigoClienteContador",
     "CodigoOportunidadContador",
     "ContadorFactura",
+    "DocumentoArchivo",
     "DocumentoComercial",
     "EnriquecimientoCache",
     "EnriquecimientoIntento",
