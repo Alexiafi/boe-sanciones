@@ -45,6 +45,7 @@ def test_migrations_reach_opportunity_head(clean_database):
     assert (revisions / "0014_pipeline_progreso.py").exists()
     assert (revisions / "0015_identidad_y_estados.py").exists()
     assert (revisions / "0016_limpia_contacto_organismo.py").exists()
+    assert (revisions / "0018_limpia_contacto_directorios.py").exists()
     assert (revisions / "0017_contrato_octubre.py").exists()
 
 
@@ -232,6 +233,69 @@ def test_contact_that_belongs_to_the_administration_is_removed_but_manual_data_i
 
 
 @pytest.mark.integration
+def test_contact_of_company_directories_is_removed(clean_database):
+    """The client's cases (2026-10-17): Grupo Boheme Sensations stored with
+    iberinform's own line, mailbox, website and LinkedIn; Moldes Diaz with qdq.com
+    and QDQ's social accounts next to its real phone."""
+    config = _alembic_config()
+    command.downgrade(config, "0017_contrato_octubre")
+    with sync_engine.begin() as connection:
+        documento_id = connection.execute(text(
+            "INSERT INTO boe_documentos (boe_id, fecha_publicacion, titulo) VALUES ('BOE-MIG-3', '2026-10-07', 'D') RETURNING id"
+        )).scalar_one()
+        iberinform = "https://www.iberinform.es/empresa/7222684/grupo-boheme-sensations"
+        _insertar_aviso(
+            connection, documento_id, 1, identificador="B98854250", identidad_clave="B98854250",
+            telefono="900213215", email="atencionclientes@iberinform.es", web="https://www.iberinform.es",
+            linkedin_url="https://www.linkedin.com/company/iberinform",
+            contacto_estado="encontrado", contacto_fuente="www.iberinform.es", contacto_url=iberinform,
+            contacto_detalle={
+                campo: {"valor": valor, "fuente_url": iberinform, "confidence": 0.9}
+                for campo, valor in {
+                    "telefono": "900213215", "email": "atencionclientes@iberinform.es",
+                    "web": "https://www.iberinform.es", "linkedin_url": "https://www.linkedin.com/company/iberinform",
+                }.items()
+            },
+        )
+        qdq = "https://www.qdq.com/moldes-diaz-sa-823825"
+        einforma = "https://www.einforma.com/informacion-empresa/moldes-diaz"
+        _insertar_aviso(
+            connection, documento_id, 2, identificador="A58017732", identidad_clave="A58017732",
+            telefono="936853050", web="https://www.qdq.com", facebook_url="https://www.facebook.com/qdqoficial",
+            instagram_url="https://www.instagram.com/qdqoficial",
+            contacto_estado="encontrado", contacto_fuente="www.einforma.com", contacto_url=einforma,
+            contacto_detalle={
+                "telefono": {"valor": "936853050", "fuente_url": einforma, "confidence": 0.9},
+                "web": {"valor": "https://www.qdq.com", "fuente_url": qdq, "confidence": 0.6},
+                "facebook_url": {"valor": "https://www.facebook.com/qdqoficial", "fuente_url": qdq, "confidence": 0.6},
+                "instagram_url": {"valor": "https://www.instagram.com/qdqoficial", "fuente_url": qdq, "confidence": 0.6},
+            },
+        )
+        # Typed by hand: never touched.
+        _insertar_aviso(
+            connection, documento_id, 3, identificador="B76286863", identidad_clave="B76286863",
+            telefono="902 000 000", web="https://www.qdq.com", contacto_estado="manual",
+        )
+    command.upgrade(config, "head")
+    with sync_engine.connect() as connection:
+        filas = {
+            fila["identificador"]: fila for fila in connection.execute(text(
+                "SELECT identificador, telefono, email, web, linkedin_url, facebook_url, instagram_url, "
+                "contacto_estado, contacto_detalle FROM sancionados"
+            )).mappings()
+        }
+    boheme = filas["B98854250"]
+    assert boheme["telefono"] is None and boheme["email"] is None and boheme["web"] is None
+    assert boheme["linkedin_url"] is None and boheme["contacto_estado"] == "pendiente"
+    moldes = filas["A58017732"]
+    assert moldes["telefono"] == "936853050" and moldes["contacto_estado"] == "encontrado"
+    assert moldes["web"] is None and moldes["facebook_url"] is None and moldes["instagram_url"] is None
+    assert set(moldes["contacto_detalle"]) == {"telefono"}
+    manual = filas["B76286863"]
+    assert manual["telefono"] == "902 000 000" and manual["web"] == "https://www.qdq.com"
+
+
+@pytest.mark.integration
 def test_the_october_contract_is_the_active_template(clean_database):
     with sync_engine.connect() as connection:
         activas = connection.execute(text(
@@ -273,7 +337,7 @@ def test_bootstrap_empty_and_legacy_schema_preserves_duplicate_rows():
         rows = connection.execute(
             text("SELECT codigo, origen_clave, estado_oportunidad FROM sancionados ORDER BY id")
         ).mappings().all()
-        assert revision == "0017_contrato_octubre"
+        assert revision == "0018_limpia_contacto_directorios"
     assert [row["codigo"] for row in rows] == ["OP-2025-000001", "OP-2025-000002"]
     assert len({row["origen_clave"] for row in rows}) == 2
     assert {row["estado_oportunidad"] for row in rows} == {"nueva"}

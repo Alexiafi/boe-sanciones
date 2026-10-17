@@ -68,6 +68,13 @@ COMPANY_DATA_DOMAINS = frozenset({
     "axesor.es", "datoscif.es", "paginasamarillas.es", "elpais.com",
     "interempresas.net", "nextdoor.com", "empresia.es", "infocif.es",
     "registro-mercantil.com",
+    # Their pages carry the directory's own customer-service line in the header/footer
+    # (iberinform: 900 213 215 / atencionclientes@iberinform.es was stored as a company's).
+    "iberinform.es", "librebor.me", "universia.es", "cylex.es", "infobel.com", "kompass.com",
+    "europages.es", "europages.com", "expansion.com", "11870.com", "qdq.com", "hotfrog.es",
+    "opencorporates.com", "dateas.com", "sociedad.info", "infonif.es", "cifempresa.es",
+    "guiaempresas.es", "empresas.es", "informacion-empresas.es", "boletinempresas.es",
+    "infoentidades.es", "monitorempresas.es", "yelp.es", "tripadvisor.es",
 })
 NON_ENTITY_DOMAINS = frozenset({
     "ocu.org", "facebook.com", "linkedin.com", "instagram.com", "twitter.com",
@@ -86,6 +93,8 @@ LEGAL_LINK_HINTS = (
     "quienes-somos", "quienes_somos", "quienes somos", "quienessomos",
     "sobre-nosotros", "about-us", "about",
     "sede-social", "sede social", "datos-identificativos",
+    # RGPD privacy policies name the data controller with CIF, address and phone.
+    "privacidad", "privacy",
 )
 
 
@@ -153,7 +162,7 @@ def _looks_like_published_phone(raw: str, text: str, start: int) -> bool:
         return True
     # Stay inside the current HTML text node so a nearby "Tel:" in the previous
     # paragraph cannot legitimize a SKU or order number.
-    chunk = text[max(0, start - 40): start]
+    chunk = text[max(0, start - 70): start]
     chunk = chunk.rsplit(">", 1)[-1]
     return bool(PHONE_CONTEXT_RE.search(chunk))
 
@@ -269,3 +278,340 @@ def razon_from_directory_slug(url: str) -> str | None:
     if len(slug) < 10:
         return None
     return slug.upper()
+
+
+# ---------------------------------------------------------------------------
+# Attribution: which phone/email on a page belongs to THIS party.
+#
+# A page "about" a company (it carries the CIF or the exact razón social) also
+# carries numbers that are not the company's: the directory's own customer line in
+# its header/footer (iberinform 900 213 215), "other companies" sidebars with their
+# own CIF and phone, or — on an official notice — the issuing office's line. Only
+# what sits next to the party's own identifier or name, and before the next
+# party's identifier, is attributed to it.
+# ---------------------------------------------------------------------------
+
+_TAGS_SIN_TEXTO = ("script", "style", "noscript", "svg", "template", "iframe", "head", "select", "button")
+_TAGS_MARCO = ("footer", "nav", "aside")
+_CLASE_MARCO_RE = re.compile(r"footer|cookie|navbar|topbar|breadcrumb", re.IGNORECASE)
+
+# CIF (letter + 7 digits + control), DNI (8 digits + letter, dotted or not), NIE.
+_ID_EN_TEXTO_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:"
+    r"[ABCDEFGHJKLMNPQRSUVW][\s.\-]?\d{7}[\s.\-]?[0-9A-J]"
+    r"|\d{2}\.?\d{3}\.?\d{3}[\s\-]?[A-Z]"
+    r"|[XYZ][\s.\-]?\d{7}[\s.\-]?[A-Z]"
+    r")(?![A-Za-z0-9])"
+)
+
+# Words of an official notice / gazette / tender page: the only contact on it is the office's.
+_PALABRAS_OFICIALES = (
+    "notificacion", "expediente", "procedimiento sancionador", "boletin oficial", "edicto",
+    "resolucion", "ayuntamiento", "jefatura provincial de trafico", "agencia tributaria",
+    "diputacion", "tablon", "providencia de apremio", "recaudacion", "licitacion", "adjudicacion",
+    "denuncia", "organo de contratacion", "sede electronica", "en virtud de lo dispuesto",
+)
+
+# Path shapes of a company-directory record (an unknown directory is still a directory).
+_RUTA_DIRECTORIO_RE = re.compile(
+    r"(?:^|/)(?:empresas|informacion-empresa|ficha-empresa|directorio(?:-empresas)?|"
+    r"companies|company-profile|informes-empresas|telefono-direccion)(?:/|$|[-_])",
+    re.IGNORECASE,
+)
+
+# Name tokens too common to tell a company's own domain apart.
+_PALABRAS_GENERICAS = frozenset({
+    "GRUPO", "SOLUCIONES", "SERVICIOS", "SERVICES", "ESPANA", "SPAIN", "SOCIEDAD", "LIMITADA",
+    "ANONIMA", "GLOBAL", "GESTION", "INVERSIONES", "CONSTRUCCIONES", "TRANSPORTES", "HERMANOS",
+    "INTERNACIONAL", "EMPRESA", "COMERCIAL", "INMOBILIARIA", "PROYECTOS", "DESARROLLO", "OBRAS",
+    "LOGISTICA", "CONSULTING", "COMPANY", "GROUP", "TRADING", "IBERICA", "NORTE", "LEVANTE",
+})
+_FORMAS_LEGALES = frozenset({
+    "SA", "SAU", "SL", "SLU", "SLL", "SRL", "SGIIC", "SICAV", "AIE", "UTE", "CB", "SC", "SCP",
+    "SOCIEDAD", "LIMITADA", "ANONIMA", "UNIPERSONAL", "COOPERATIVA", "SCOOP",
+})
+_PLIEGUE = str.maketrans("ÁÉÍÓÚÜÀÈÌÒÙÂÊÎÔÛÄËÏÖÑÇáéíóúüàèìòùâêîôûäëïöñç", "AEIOUUAEIOUAEIOUAEIONCaeiouuaeiouaeiouaeionc")
+
+
+def _plegar(texto: str) -> str:
+    """Upper-case and accent-free with the SAME length, so positions still match."""
+    return texto.translate(_PLIEGUE).upper()
+
+
+def clave_compacta(valor: str | None) -> str:
+    return re.sub(r"[^A-Z0-9]", "", _plegar(valor or ""))
+
+
+def texto_visible(html: str, *, sin_marco: bool = False) -> str:
+    """The text a person sees. ``tel:``/``mailto:`` links become text where they
+    stand, so they are judged by their position like any other number. With
+    ``sin_marco`` the page frame (footer, nav, sidebars, cookie bars) goes too:
+    on a directory that is where its OWN phone and email live."""
+    if not html:
+        return ""
+    if "<" not in html:
+        return re.sub(r"\s+", " ", html).strip()
+    from bs4 import BeautifulSoup, Comment
+
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:  # pragma: no cover - lxml always present in the image
+        soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(_TAGS_SIN_TEXTO):
+        tag.decompose()
+    for comentario in soup.find_all(string=lambda t: isinstance(t, Comment)):
+        comentario.extract()
+    if sin_marco:
+        for tag in soup(_TAGS_MARCO):
+            tag.decompose()
+        # The site header (logo, menu, the site's own phone) — not a record's
+        # <header> inside <main>/<article>, nor one holding the page title.
+        for tag in list(soup("header")):
+            if getattr(tag, "decomposed", False) or tag.find("h1") or tag.find_parent(("main", "article")):
+                continue
+            tag.decompose()
+        for tag in list(soup.find_all(True)):
+            if getattr(tag, "decomposed", False) or tag.name in ("html", "body", "main", "article"):
+                continue
+            attrs = tag.attrs or {}
+            clases = attrs.get("class") or []
+            marcas = " ".join(clases if isinstance(clases, list) else [str(clases)]) + " " + str(attrs.get("id") or "")
+            if marcas.strip() and _CLASE_MARCO_RE.search(marcas):
+                tag.decompose()
+    for enlace in soup.find_all("a", href=True):
+        href = enlace["href"].strip()
+        if href.lower().startswith("tel:"):
+            enlace.replace_with(f" Tel. {href[4:]} ")
+        elif href.lower().startswith("mailto:"):
+            enlace.replace_with(f" {href[7:].split('?')[0]} ")
+    return re.sub(r"\s+", " ", soup.get_text(" ")).strip()
+
+
+def identificadores_en_texto(texto: str) -> list[tuple[int, int, str]]:
+    """(start, end, compact key) of every DNI/NIE/CIF-shaped token."""
+    return [
+        (m.start(), m.end(), re.sub(r"[\s.\-]", "", m.group(0)).upper())
+        for m in _ID_EN_TEXTO_RE.finditer(texto)
+    ]
+
+
+# Legal form at the end of a name, however it is written: "S.L.", "S L", "SL.", "S.A.U.", "Sociedad Limitada".
+_FORMA_FINAL_RE = re.compile(
+    r"[\s,.]*(?:S[\s.]*A[\s.]*S|S[\s.]*L[\s.]*(?:U|L|N[\s.]*E)?|S[\s.]*A[\s.]*U?|S[\s.]*C(?:[\s.]*P)?|C[\s.]*B|"
+    r"SOCIEDAD\s+(?:LIMITADA|ANONIMA)(?:\s+UNIPERSONAL)?|SCOOP|COOP|SGIIC|SICAV|AIE|UTE)[\s.]*$"
+)
+# Legal form written right after a name in running text ("…SENSATIONS, S. L. trata…").
+_FORMA_TRAS_RE = re.compile(
+    r"\s*,?\s*(SOCIEDAD\s+LIMITADA|SOCIEDAD\s+ANONIMA|S[\s.]*A[\s.]*S|S[\s.]*L[\s.]*(?:N[\s.]*E|U|L)?|"
+    r"S[\s.]*A[\s.]*U?|S[\s.]*C[\s.]*P|C[\s.]*B|S[\s.]*COOP|COOP|SGIIC|SICAV|AIE|UTE)(?![A-Z])"
+)
+
+
+def _forma_normal(texto: str) -> str:
+    compacta = re.sub(r"[\s.,]", "", texto)
+    if compacta.startswith("SOCIEDADLIMITADA") or compacta in ("SL", "SLU", "SLL", "SLNE"):
+        return "SL"
+    if compacta.startswith("SOCIEDADANONIMA") or compacta in ("SA", "SAU"):
+        return "SA"
+    return compacta
+
+
+def forma_de_nombre(nombre: str | None) -> str | None:
+    """Legal form of a razón social, normalised (SL / SA / SAS / SCP…), or None."""
+    m = _FORMA_FINAL_RE.search(_plegar(nombre or "").strip())
+    return _forma_normal(m.group(0)) if m and m.group(0).strip(" ,.") else None
+
+
+def tokens_nombre(nombre: str | None) -> list[str]:
+    """Significant words of a razón social, without its legal form."""
+    plegado = _FORMA_FINAL_RE.sub("", _plegar(nombre or "").strip())
+    palabras = [p for p in re.split(r"[^A-Z0-9]+", plegado) if p]
+    return [p for p in palabras if p not in _FORMAS_LEGALES]
+
+
+def coincidencias_nombre(texto: str, nombre: str | None) -> list[tuple[int, int, str | None]]:
+    """Where the razón social (its significant words, in order) appears AS A
+    WHOLE NAME, with the legal form written right after it (None if none).
+    Right after the name comes a legal form, punctuation or the end — never
+    another word of a longer name ("KUBIKA" is not "Kubika Grupo Inmobiliario
+    SL") — and a different legal form is a different company ("Ágora
+    Patrimonial S.A.S." is not "Ágora Patrimonial S.L.")."""
+    tokens = tokens_nombre(nombre)
+    if not tokens or len("".join(tokens)) < 5:
+        return []
+    forma_buscada = forma_de_nombre(nombre)
+    plegado = _plegar(texto)
+    patron = r"(?<![A-Z0-9])" + r"[\W_]{0,3}".join(re.escape(t) for t in tokens) + r"(?![A-Z0-9])"
+    encontradas: list[tuple[int, int, str | None]] = []
+    for m in re.finditer(patron, plegado):
+        resto = plegado[m.end():m.end() + 40]
+        forma_m = _FORMA_TRAS_RE.match(resto)
+        forma = _forma_normal(forma_m.group(1)) if forma_m else None
+        if forma and forma_buscada and forma != forma_buscada:
+            continue
+        if len(tokens) == 1 and not forma:
+            # A one-word name is only that company when its legal form follows.
+            continue
+        if not forma and not re.match(r"\s*(?:[,.;:|()\-»\"'/]|$)", resto):
+            siguiente = re.match(r"\s*([A-Z0-9]+)", resto)
+            if siguiente and siguiente.group(1) not in _CONECTORES:
+                continue
+        encontradas.append((m.start(), m.end(), forma))
+    return encontradas
+
+
+def posiciones_nombre(texto: str, nombre: str | None) -> list[tuple[int, int]]:
+    return [(s, e) for s, e, _ in coincidencias_nombre(texto, nombre)]
+
+
+def menciona_nombre_con_forma(texto: str | None, nombre: str | None) -> bool:
+    """The full razón social WITH its legal form: what an aviso legal / privacy
+    policy writes, and what a homonymous brand abroad does not."""
+    return bool(texto) and any(forma for _, _, forma in coincidencias_nombre(texto, nombre))
+
+
+# Words that may follow a complete name in running text ("Moldes Diaz es una empresa…").
+_CONECTORES = frozenset({
+    "ES", "EN", "CON", "SE", "TIENE", "FUE", "ESTA", "SU", "SUS", "NIF", "CIF", "TELEFONO", "TEL",
+    "TFNO", "DIRECCION", "DOMICILIO", "INFORME", "DATOS", "EMAIL", "WEB", "UBICADA", "SITUADA",
+})
+
+
+def menciona_nombre(texto: str | None, nombre: str | None) -> bool:
+    return bool(texto) and bool(posiciones_nombre(texto, nombre))
+
+
+def contacto_cercano(
+    texto: str, identificador: str | None, nombre: str | None, *, despues: int = 700, antes: int = 250,
+) -> tuple[list[str], list[str]]:
+    """Phones and emails that sit next to the party's identifier (or, failing
+    that, its razón social), closest first, never past another party's
+    identifier. Nothing when the page never names the party."""
+    clave = clave_compacta(identificador)
+    ids = identificadores_en_texto(texto)
+    anclas = [(s, e) for s, e, c in ids if len(clave) >= 8 and c == clave]
+    if not anclas:
+        anclas = posiciones_nombre(texto, nombre)
+    if not anclas:
+        return [], []
+    otros = [(s, e) for s, e, c in ids if c != clave]
+
+    telefonos: dict[str, tuple[int, str]] = {}
+    emails: dict[str, int] = {}
+    for inicio, fin in anclas:
+        lo = max(0, inicio - antes)
+        hi = min(len(texto), fin + despues)
+        for s, e in otros:
+            if e <= inicio:
+                lo = max(lo, e)
+            elif s >= fin:
+                hi = min(hi, s)
+        tramo = texto[lo:hi]
+        for m in PHONE_RE.finditer(tramo):
+            raw = "".join(part for part in m.groups() if part)
+            if not _looks_like_published_phone(raw, tramo, m.start()):
+                continue
+            nacional = national_digits(raw)
+            if not nacional:
+                continue
+            distancia = abs(lo + m.start() - inicio)
+            if nacional not in telefonos or distancia < telefonos[nacional][0]:
+                telefonos[nacional] = (distancia, raw.strip())
+        for m in EMAIL_RE.finditer(tramo):
+            valor = m.group(0)
+            if _is_junk_email(valor):
+                continue
+            distancia = abs(lo + m.start() - inicio)
+            clave_email = valor.lower()
+            if clave_email not in emails or distancia < emails[clave_email]:
+                emails[clave_email] = distancia
+    return (
+        [raw for _, raw in sorted(telefonos.values())],
+        [valor for valor, _ in sorted(emails.items(), key=lambda item: item[1])],
+    )
+
+
+def parece_directorio(url: str, identificador: str | None = None) -> bool:
+    """Known directory, or a page shaped like a company-directory record."""
+    from urllib.parse import unquote, urlparse
+
+    parsed = urlparse(url)
+    if is_generic_directory(parsed.netloc):
+        return True
+    clave = clave_compacta(identificador)
+    if len(clave) >= 8 and clave in clave_compacta(unquote(parsed.path + parsed.query)):
+        return True
+    return bool(_RUTA_DIRECTORIO_RE.search(parsed.path))
+
+
+def parece_pagina_oficial(texto: str, identificador: str | None = None) -> bool:
+    """An official notice, gazette, tender or any list of several parties: none
+    of the contact data on it is the party's."""
+    plano = _plegar(texto).lower()
+    if sum(1 for palabra in _PALABRAS_OFICIALES if palabra in plano) >= 3:
+        return True
+    clave = clave_compacta(identificador)
+    otros = {c for _, _, c in identificadores_en_texto(texto) if c != clave}
+    return len(otros) >= 3
+
+
+def dominio_parecido(dominio: str, nombre: str | None) -> bool:
+    """The domain looks like the company's own (``gestfy.com`` for Gestfy Soluciones)."""
+    etiqueta = dominio.lower()
+    if etiqueta.startswith("www."):
+        etiqueta = etiqueta[4:]
+    etiqueta = clave_compacta(etiqueta.rsplit(".", 1)[0])
+    utiles = [t for t in tokens_nombre(nombre) if len(t) >= 4 and t not in _PALABRAS_GENERICAS]
+    return any(t in etiqueta for t in utiles)
+
+
+def email_del_sitio(email: str, dominio: str) -> bool:
+    """The address belongs to the site that publishes it (or to any known directory)."""
+    dominio_email = email.lower().rpartition("@")[2]
+    base = dominio.lower()
+    if base.startswith("www."):
+        base = base[4:]
+    raiz = ".".join(base.split(".")[-2:])
+    return dominio_email == base or dominio_email.endswith("." + raiz) or dominio_email == raiz or is_generic_directory(dominio_email)
+
+
+def razon_de_titulo(titulo: str | None) -> str | None:
+    """Company name at the start of a directory result title:
+    'GRUPO BOHEME SENSATIONS SL - NIF B98854250 - Infonif', 'Moldes Diaz SA: consulte…'."""
+    if not titulo:
+        return None
+    m = _RAZON_SOCIAL_RE.search(titulo.split(" | ")[0])
+    if m:
+        nombre = re.sub(r"\s+", " ", m.group(1)).strip(" -,|«»\"")
+        forma = re.sub(r"[\s.]", "", m.group(2)).upper()
+        if len(nombre) >= 3:
+            return f"{nombre} {forma}"
+    m = re.search(r"^(.+?)\s+(Sociedad Limitada|Sociedad An[oó]nima)\b", titulo, re.IGNORECASE)
+    if m:
+        return f"{m.group(1).strip()} {'SL' if 'limitada' in m.group(2).lower() else 'SA'}"
+    return None
+
+
+def limpiar_razon(razon: str | None) -> str | None:
+    """A discovered name without identifiers glued to it ('B55257109 ACCESORIOS DORADOS SL')."""
+    if not razon:
+        return None
+    limpio = re.sub(r"\s+", " ", _ID_EN_TEXTO_RE.sub(" ", razon)).strip(" -,|:;")
+    limpio = re.sub(r"^(?:NIF|CIF|N\.I\.F\.|C\.I\.F\.)\s*:?\s*", "", limpio, flags=re.IGNORECASE)
+    return limpio if len(limpio) >= 3 else None
+
+
+def perfil_parecido(url: str, nombre: str | None, dominio: str | None) -> bool:
+    """A social profile whose handle looks like the party (its name or its own domain)."""
+    handle = clave_compacta(url.rstrip("/").rsplit("/", 1)[-1])
+    if len(handle) < 3:
+        return False
+    utiles = [t for t in tokens_nombre(nombre) if len(t) >= 4 and t not in _PALABRAS_GENERICAS]
+    if any(t in handle for t in utiles):
+        return True
+    if dominio:
+        etiqueta = dominio.lower()
+        etiqueta = etiqueta[4:] if etiqueta.startswith("www.") else etiqueta
+        etiqueta = clave_compacta(etiqueta.rsplit(".", 1)[0])
+        return len(etiqueta) >= 4 and (etiqueta in handle or handle in etiqueta)
+    return False

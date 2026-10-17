@@ -385,6 +385,8 @@ export interface ConfiguracionRuntime {
   historico_extraccion_modo: ModoExtraccion;
   extraccion_max_docs_por_ejecucion: number;
   teu_max_por_ejecucion: number;
+  enriquecimiento_automatico: boolean;
+  enriquecimiento_max_por_dia: number;
 }
 
 export interface EstadoEntorno {

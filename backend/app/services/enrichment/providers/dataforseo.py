@@ -18,6 +18,7 @@ account itself has a $50 minimum top-up — before it returns real results.
 from __future__ import annotations
 
 import logging
+import time
 
 import httpx
 
@@ -30,6 +31,7 @@ DATAFORSEO_URL = "https://api.dataforseo.com/v3/serp/google/organic/live/advance
 # Live SERP is a Google round-trip; 10s (the page-fetch timeout) routinely
 # cuts the request off and used to be swallowed as "no encontrado".
 DATAFORSEO_TIMEOUT = 45.0
+DATAFORSEO_REINTENTOS = 2
 
 
 def _error_message(exc: httpx.HTTPStatusError) -> str:
@@ -63,7 +65,7 @@ class DataForSEOProvider:
     requiere_api_key = True
     coste_estimado_por_consulta = 0.002  # Live mode, depth=10; see provider table in the research report
 
-    def buscar(self, query: str, max_results: int) -> list[SearchCandidate]:
+    def buscar(self, query: str, max_results: int, _reintento: int = 0) -> list[SearchCandidate]:
         if not settings.dataforseo_login or not settings.dataforseo_password:
             logger.warning("DataForSEO provider selected but login/password are not configured")
             return []
@@ -99,8 +101,15 @@ class DataForSEOProvider:
 
         tasks = data.get("tasks") or []
         if not tasks or tasks[0].get("status_code") != 20000:
-            logger.warning("DataForSEO task did not complete: %s", tasks[0].get("status_message") if tasks else "no tasks")
-            return []
+            mensaje = tasks[0].get("status_message") if tasks else "no tasks"
+            logger.warning("DataForSEO task did not complete: %s", mensaje)
+            # "Internal SE Server Error" comes and goes (live test 2026-10-17: about
+            # one query in five). A failed search is not "nothing found": retry,
+            # then report it as an error so the party can be searched again.
+            if _reintento < DATAFORSEO_REINTENTOS:
+                time.sleep(1.5 * (_reintento + 1))
+                return self.buscar(query, max_results, _reintento=_reintento + 1)
+            raise SearchProviderError(f"DataForSEO no completó la búsqueda: {mensaje}")
         results = tasks[0].get("result") or []
         items = results[0].get("items") if results else []
         organic = [item for item in (items or []) if item.get("type") == "organic"]

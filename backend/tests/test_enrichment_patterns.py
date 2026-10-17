@@ -139,3 +139,61 @@ def test_public_bodies_and_official_gazettes_are_not_a_source_of_contact():
     # Fragments only count at the start of a domain label: these are companies.
     for dominio in ("www.acmelogistica.es", "transportes-sur.com", "www.einforma.com", "hayton.com", "playtown.es", "desbop.com"):
         assert not is_non_entity_site(dominio), dominio
+
+
+# --- attribution (real names and texts from the client's cases, 2026-10-17) ---
+
+def test_full_name_does_not_match_a_longer_name_or_another_legal_form():
+    assert not patterns.menciona_nombre("Kubika Grupo Inmobiliario Sociedad Limitada, Valencia", "KUBIKA S L")
+    assert patterns.menciona_nombre("KUBIKA SL: Teléfono, CIF y Dirección", "KUBIKA S L")
+    assert not patterns.menciona_nombre("© 2026 Ágora Patrimonial S.A.S. Bogotá", "Ágora Patrimonial S.L.")
+    assert patterns.menciona_nombre("AGORA PATRIMONIAL SL | Datos de Empresa", "Ágora Patrimonial S.L.")
+    assert patterns.menciona_nombre(
+        "ACCESORIOS DORADOS SOCIEDAD LIMITADA | El último teléfono ...", "ACCESORIOS DORADOS SL",
+    )
+    assert not patterns.menciona_nombre("Accesorios Moda Y Novedades Sl - Teléfono", "ACCESORIOS DORADOS SL")
+    assert patterns.menciona_nombre_con_forma("Responsable: GRUPO BOHEME SENSATIONS, S. L. Domicilio", "GRUPO BOHEME SENSATIONS SL")
+
+
+def test_contact_next_to_the_cif_but_not_the_directory_frame_or_sidebar():
+    html = (
+        "<html><body>"
+        '<header><a href="tel:900213215">900 213 215</a></header>'
+        "<main><h1>GRUPO BOHEME SENSATIONS SL</h1><p>CIF: B98854250</p><p>Teléfono: 620 94 07 19</p></main>"
+        "<aside><p>GEST BARFISA SL con NIF B60355518. Teléfono: 935894337</p></aside>"
+        "<footer>Atención al cliente 900 213 215 · atencionclientes@iberinform.es</footer>"
+        "</body></html>"
+    )
+    visible = patterns.texto_visible(html, sin_marco=True)
+    telefonos, emails = patterns.contacto_cercano(visible, "B98854250", "GRUPO BOHEME SENSATIONS SL")
+    assert telefonos == ["620 94 07 19"]
+    assert emails == []
+
+
+def test_other_party_identifier_bounds_the_contact():
+    texto = "70. PERIS LOGÍSTICA, S.L.. C.I.F. B-97491344. Tel. Móvil 650 977 675. 71. OTRA SL C.I.F. B-11111111. Tel. 611 222 333."
+    telefonos, _ = patterns.contacto_cercano(texto, "B97491344", "PERIS LOGISTICA SL")
+    assert telefonos == ["650 977 675"]
+
+
+def test_official_notice_or_list_page_is_detected():
+    notificacion = (
+        "AYUNTAMIENTO DE SANT CUGAT. Notificación de la resolución del expediente sancionador. "
+        "En virtud de lo dispuesto en la Ley 39/2015 se notifica a 2010 SERIGRAFIA SL B65350845. Tel. 935 650 000"
+    )
+    assert patterns.parece_pagina_oficial(notificacion, "B65350845")
+    lista = "B98854250 GRUPO BOHEME SENSATIONS S.L. 12. B98930910 TYRVAL IMPORT EXPORT S.L. B11111111 X SL B22222222 Y SL"
+    assert patterns.parece_pagina_oficial(lista, "B98854250")
+    assert not patterns.parece_pagina_oficial("Moldes Diaz SA. CIF A58017732. Teléfono 936853050", "A58017732")
+
+
+def test_name_from_directory_titles():
+    assert patterns.razon_de_titulo("GRUPO BOHEME SENSATIONS SL - NIF B98854250 - Infonif") == "GRUPO BOHEME SENSATIONS SL"
+    assert patterns.razon_de_titulo("Accesorios Dorados Sociedad Limitada, Girona") == "Accesorios Dorados SL"
+    assert patterns.razon_de_titulo("Moldes Diaz SA: consulte teléfono, CIF y dirección") == "Moldes Diaz SA"
+    assert patterns.limpiar_razon("B55257109 ACCESORIOS DORADOS SLU") == "ACCESORIOS DORADOS SLU"
+
+
+def test_social_profile_must_look_like_the_company():
+    assert patterns.perfil_parecido("https://www.instagram.com/bohemesensations", "GRUPO BOHEME SENSATIONS SL", None)
+    assert not patterns.perfil_parecido("https://www.facebook.com/artbees", "ITEAF 7 ISLAS SL", "iteaf7islas.es")

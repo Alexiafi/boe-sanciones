@@ -270,8 +270,8 @@ export default function ScrapingPage() {
       <PageHeader title="Operación" description="Gestiona la captación diaria del BOE, los lotes OpenAI y el backfill histórico bajo demanda." />
 
       <Notice tone="info" className="mb-6">
-        La captación diaria se ejecuta sola cada hora (07:30–21:30) y al arrancar el software; si el BOE aún no ha publicado,
-        vuelve a intentarlo en la siguiente hora. Si la extracción OpenAI está activa en{" "}
+        La captación diaria se ejecuta sola cada 30 minutos de 07:00 a 11:30, cada hora hasta las 21:30 y al arrancar el
+        software; tres veces al día se pone al día con los últimos 10 días. Si la extracción OpenAI está activa en{" "}
         <Link href="/configuracion" className="font-medium underline">Configuración</Link>, las sanciones del día aparecen sin
         pulsar nada. Lo de abajo es para forzar una fecha concreta o revisar qué ha pasado.
       </Notice>

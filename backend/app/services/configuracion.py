@@ -20,6 +20,12 @@ SMTP…). This module holds what the operator changes day to day from the
 - ``teu_max_por_ejecucion`` — how many relevant TEU notifications the daily
   run downloads (the TEU publishes 600–1,200 relevant notices a day; 2026-09-18
   had 1,154).
+- ``enriquecimiento_automatico`` — search the web, on its own, for the razón
+  social and the phone/email of every new COMPANY notice (CIF) of the last days
+  (``tasks/enrichment.run_enriquecimiento_automatico``). Off until the operator
+  turns it on: each company costs one or two paid searches (Serper ≈ 0,001 $).
+- ``enriquecimiento_max_por_dia`` — ceiling on enrichment attempts per day
+  (automatic and manual together).
 
 Both a sync (Celery tasks) and an async (API) loader exist, sharing one
 parser so defaults and validation live in a single place.
@@ -47,6 +53,8 @@ class ConfiguracionRuntime(BaseModel):
     historico_extraccion_modo: ModoExtraccion = "batch"
     extraccion_max_docs_por_ejecucion: int = Field(default=2_000, ge=0, le=5_000)
     teu_max_por_ejecucion: int = Field(default=2_000, ge=0, le=5_000)
+    enriquecimiento_automatico: bool = False
+    enriquecimiento_max_por_dia: int = Field(default=300, ge=0, le=3_000)
 
     model_config = {"extra": "forbid"}
 
@@ -59,6 +67,8 @@ class ConfiguracionUpdate(BaseModel):
     historico_extraccion_modo: ModoExtraccion | None = None
     extraccion_max_docs_por_ejecucion: int | None = Field(default=None, ge=0, le=5_000)
     teu_max_por_ejecucion: int | None = Field(default=None, ge=0, le=5_000)
+    enriquecimiento_automatico: bool | None = None
+    enriquecimiento_max_por_dia: int | None = Field(default=None, ge=0, le=3_000)
 
     model_config = {"extra": "forbid"}
 

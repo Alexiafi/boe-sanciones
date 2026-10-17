@@ -6,6 +6,7 @@ test below actively enforces that by making ``httpx.Client`` raise if built.
 from __future__ import annotations
 
 from datetime import date
+import itertools
 import os
 
 import pytest
@@ -39,8 +40,11 @@ EMPRESA_HTML_SIN_EVIDENCIA = """
 """
 
 
+_SECUENCIA = itertools.count(1)
+
+
 def _opportunity(session, *, nombre="Acme Logistica SL", identificador="B12345678", localidad="Sevilla") -> Sancionado:
-    document = BoeDocumento(boe_id=f"BOE-2026-ENRICH-{id(object())}", fecha_publicacion=date(2026, 8, 1), titulo="Doc")
+    document = BoeDocumento(boe_id=f"BOE-2026-ENRICH-{next(_SECUENCIA)}", fecha_publicacion=date(2026, 8, 1), titulo="Doc")
     session.add(document)
     session.flush()
     # codigo/origen_clave must be globally unique; derive them from the row's
@@ -63,19 +67,42 @@ def _enable(monkeypatch, provider="fixture"):
     monkeypatch.setattr(settings, "enrichment_search_provider", provider)
 
 
+class _Buscador(FixtureProvider):
+    """The cascade runs one or two searches ("<razón social> telefono", the bare
+    CIF): every query gets the same candidates and is recorded."""
+
+    def __init__(self, candidates):
+        super().__init__()
+        self.candidates = list(candidates)
+        self.calls: list[str] = []
+
+    def buscar(self, query, max_results):
+        self.calls.append(query)
+        return list(self.candidates)[:max_results]
+
+
 def test_build_query_uses_cif_prefix_when_name_is_missing():
     from types import SimpleNamespace
 
     row = SimpleNamespace(
         nombre=None, identificador="B99887766", localidad=None, provincia=None,
-        tipo_identificador="CIF",
+        tipo_identificador="CIF", tipo_persona="juridica",
     )
-    assert enrichment_service._build_query(row) == "CIF B99887766"
+    # Live test 2026-10-17: "CIF B54866371" or the CIF plus the town made Google
+    # return other companies; the bare CIF ranks that company's own records.
+    assert enrichment_service._build_query(row) == "B99887766"
     row.nombre = "B99887766"
     row.localidad = "Tarragona"
-    assert enrichment_service._build_query(row) == "CIF B99887766 Tarragona"
+    assert enrichment_service._build_query(row) == "B99887766"
+    # With a razón social, "<name> telefono" brings the snippets that carry the number.
     row.nombre = "Construhogar Gracida Siglo XXI SL"
-    assert enrichment_service._build_query(row) == "Construhogar Gracida Siglo XXI SL B99887766 Tarragona"
+    assert enrichment_service._build_query(row) == "Construhogar Gracida Siglo XXI SL telefono"
+    # People keep name + document + town.
+    persona = SimpleNamespace(
+        nombre="Juan Perez Garcia", identificador="12345678Z", localidad="Sevilla", provincia=None,
+        tipo_identificador="DNI", tipo_persona="fisica",
+    )
+    assert enrichment_service._build_query(persona) == "Juan Perez Garcia 12345678Z Sevilla"
 
 
 def test_find_legal_links_follows_aviso_legal_and_contacto():
@@ -123,9 +150,7 @@ def test_evidence_match_persists_contact_with_provenance(monkeypatch, clean_data
     session.commit()
     _enable(monkeypatch)
 
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: EMPRESA_HTML_CON_CIF)
@@ -159,9 +184,7 @@ def test_no_evidence_never_writes_a_guessed_contact(monkeypatch, clean_database)
     session.commit()
     _enable(monkeypatch)
 
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://otraempresa.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://otraempresa.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: EMPRESA_HTML_SIN_EVIDENCIA)
@@ -193,9 +216,7 @@ def test_comma_razon_social_finds_contact_on_own_site(monkeypatch, clean_databas
         "<p>Tel: +34 91 577 49 31</p>"
         "<p>Email: fondos@gesconsult.es</p></body></html>"
     )
-    provider = FixtureProvider({
-        "Gesconsult, SA, SGIIC": [SearchCandidate(url="https://gesconsult.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://gesconsult.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
@@ -222,9 +243,7 @@ def test_confidence_below_threshold_is_discarded(monkeypatch, clean_database):
     monkeypatch.setattr(settings, "enrichment_min_confidence", 0.8)
 
     html_name_only = """<html><body><p>Acme Logistica SL</p><p>Tel: 611222333</p></body></html>"""
-    provider = FixtureProvider({
-        "Acme Logistica SL Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html_name_only)
@@ -243,14 +262,7 @@ def test_cache_avoids_a_second_provider_call(monkeypatch, clean_database):
     session.commit()
     _enable(monkeypatch)
 
-    calls = []
-
-    class CountingProvider(FixtureProvider):
-        def buscar(self, query, max_results):
-            calls.append(query)
-            return super().buscar(query, max_results)
-
-    provider = CountingProvider({"Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")]})
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: EMPRESA_HTML_CON_CIF)
@@ -266,7 +278,7 @@ def test_cache_avoids_a_second_provider_call(monkeypatch, clean_database):
     enrichment_service.enrich_sancionado(session, sancionado2)
     session.commit()
 
-    assert len(calls) == 1
+    assert provider.calls == ["Acme Logistica SL telefono"]
     session.close()
 
 
@@ -280,9 +292,11 @@ def test_empty_serp_is_not_cached(monkeypatch, clean_database):
     calls = []
 
     class EmptyThenHit(FixtureProvider):
+        """Both searches of the first attempt come back empty."""
+
         def buscar(self, query, max_results):
             calls.append(query)
-            if len(calls) == 1:
+            if len(calls) <= 2:
                 return []
             return [SearchCandidate(url="https://acmelogistica.test/")]
 
@@ -298,7 +312,7 @@ def test_empty_serp_is_not_cached(monkeypatch, clean_database):
     second = enrichment_service.enrich_sancionado(session, sancionado)
     session.commit()
     assert second.estado == "encontrado"
-    assert len(calls) == 2
+    assert calls == ["Acme Logistica SL telefono", "B12345678", "Acme Logistica SL telefono"]
     session.close()
 
 
@@ -335,7 +349,7 @@ def test_robots_disallow_yields_omitido_not_no_encontrado(monkeypatch, clean_dat
     session.commit()
     _enable(monkeypatch)
 
-    provider = FixtureProvider({"Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")]})
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: False)
 
@@ -477,7 +491,7 @@ def test_snippet_contact_survives_page_fetch_failure(monkeypatch, clean_database
         title="Acme Logistica SL - Teléfono y dirección",
         snippet="Su teléfono es 611222333 y su correo es info@acmelogistica.test. CIF B12345678.",
     )
-    provider = FixtureProvider({"Acme Logistica SL B12345678 Sevilla": [candidate]})
+    provider = _Buscador([candidate])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
 
@@ -514,9 +528,7 @@ def test_social_links_and_web_stored_with_per_field_provenance(monkeypatch, clea
     <a href="https://www.instagram.com/acmelogistica/">Instagram</a>
     </body></html>
     """
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
@@ -578,7 +590,7 @@ def test_id_like_nombre_with_location_queries_by_identifier(monkeypatch, clean_d
     result = enrichment_service.enrich_sancionado(session, sancionado)
     session.commit()
 
-    assert queries == ["CIF B12345678 Sevilla"]
+    assert queries == ["B12345678"]
     assert result.estado == "no_encontrado"
     session.close()
 
@@ -600,9 +612,9 @@ def test_directory_page_social_links_are_not_attributed(monkeypatch, clean_datab
     <a href="https://www.linkedin.com/company/eleconomista">Síguenos en LinkedIn</a>
     </body></html>
     """
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://empresite.eleconomista.es/ACME.html")],
-    })
+    provider = _Buscador([SearchCandidate(
+        url="https://empresite.eleconomista.es/ACME.html", title="Acme Logistica Sl - Teléfono y dirección",
+    )])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
@@ -635,9 +647,7 @@ def test_non_entity_page_contributes_no_contact_fields(monkeypatch, clean_databa
     <a href="https://www.linkedin.com/company/ocu-consumidores">LinkedIn</a>
     </body></html>
     """
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://www.ocu.org/reclamar/empresas/acme")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://www.ocu.org/reclamar/empresas/acme")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
@@ -660,6 +670,7 @@ def test_verified_social_profile_candidate_url_is_captured(monkeypatch, clean_da
     entity's profile — captured even when robots.txt blocks fetching it."""
     session = SyncSessionLocal()
     sancionado = _opportunity(session, nombre="Carlos Gordillo Naranjo", identificador=None)
+    sancionado.tipo_persona = "fisica"
     session.commit()
     _enable(monkeypatch)
 
@@ -668,7 +679,7 @@ def test_verified_social_profile_candidate_url_is_captured(monkeypatch, clean_da
         title="Carlos Gordillo Naranjo",
         snippet="Carlos Gordillo Naranjo is on Facebook. Join Facebook to connect.",
     )
-    provider = FixtureProvider({"Carlos Gordillo Naranjo Sevilla": [candidate]})
+    provider = _Buscador([candidate])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: False)
 
@@ -699,7 +710,7 @@ def test_reenrichment_corrects_stale_auto_values(monkeypatch, clean_database):
     <html><body>
     <p>ACME LOGISTICA SL - CIF B12345678</p>
     <p>Contacto: 611222333</p>
-    <a href="https://www.linkedin.com/company/cuenta-equivocada">LinkedIn</a>
+    <a href="https://www.linkedin.com/company/acme-logistica-antigua">LinkedIn</a>
     </body></html>
     """
     html_v2 = """
@@ -710,9 +721,7 @@ def test_reenrichment_corrects_stale_auto_values(monkeypatch, clean_database):
     """
     pages = {"html": html_v1}
 
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: pages["html"])
@@ -721,7 +730,7 @@ def test_reenrichment_corrects_stale_auto_values(monkeypatch, clean_database):
     enrichment_service.enrich_sancionado(session, sancionado)
     session.commit()
     assert sancionado.telefono == "611222333"
-    assert sancionado.linkedin_url == "https://www.linkedin.com/company/cuenta-equivocada"
+    assert sancionado.linkedin_url == "https://www.linkedin.com/company/acme-logistica-antigua"
 
     pages["html"] = html_v2
     # Bypass the provider cache so the second run really re-searches.
@@ -749,9 +758,7 @@ def test_boe_extracted_contact_is_never_overwritten(monkeypatch, clean_database)
     session.commit()
     _enable(monkeypatch)
 
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: EMPRESA_HTML_CON_CIF)
@@ -777,9 +784,7 @@ def test_website_without_phone_or_email_is_not_encontrado(monkeypatch, clean_dat
     _enable(monkeypatch)
 
     html = "<html><body><p>ACME LOGISTICA SL - CIF B12345678</p></body></html>"
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
@@ -810,9 +815,7 @@ def test_nested_legal_page_yields_contact(monkeypatch, clean_database):
             "<p>Teléfono: 611 222 333 - info@acmelogistica.test</p></body></html>"
         ),
     }
-    provider = FixtureProvider({
-        "Acme Logistica SL B12345678 Sevilla": [SearchCandidate(url="https://acmelogistica.test/")],
-    })
+    provider = _Buscador([SearchCandidate(url="https://acmelogistica.test/")])
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
     monkeypatch.setattr(enrichment_service, "_respect_rate_limit", lambda domain: None)
@@ -848,11 +851,12 @@ def test_cif_directory_followup_finds_company_website(monkeypatch, clean_databas
         ),
     }
     provider = FixtureProvider({
-        "CIF B99887766": [SearchCandidate(
+        "B99887766": [SearchCandidate(
             url=einforma,
             title="CONSTRUHOGAR GRACIDA SIGLO XXI SL - Informe de empresa | einforma",
+            snippet="El CIF de CONSTRUHOGAR GRACIDA SIGLO XXI SL es B99887766.",
         )],
-        "CONSTRUHOGAR GRACIDA SIGLO XXI SL contacto": [SearchCandidate(url=oficial)],
+        "CONSTRUHOGAR GRACIDA SIGLO XXI SL telefono": [SearchCandidate(url=oficial)],
     })
     monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
     monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
@@ -988,4 +992,279 @@ def test_found_contact_is_shared_with_the_other_notices_and_the_client(monkeypat
     assert otra.telefono == "611222333" and otra.email == "info@acmelogistica.test"
     assert otra.nombre == "Acme Logistica SL" and otra.contacto_estado == "encontrado"
     assert cliente.telefono == "611222333" and cliente.email == "info@acmelogistica.test"
+    session.close()
+
+
+# ---------------------------------------------------------------------------
+# Real cases reported by the client on 2026-10-17. SERP titles/snippets were
+# recorded live (Serper, gl=es); directories that answer 403 to our fetch in real
+# life (axesor, einforma…) raise here too, so only what the snippets carry counts.
+# ---------------------------------------------------------------------------
+
+def _sin_descarga(client, url):
+    raise RuntimeError("403 Forbidden")
+
+
+def _sin_robots(monkeypatch):
+    monkeypatch.setattr(enrichment_service, "_robots_allows", lambda url, client: True)
+    monkeypatch.setattr(enrichment_service, "_respect_rate_limit", lambda domain: None)
+
+
+ACCESORIOS_DORADOS_SERP = [
+    SearchCandidate(
+        url="https://www.einforma.com/informacion-empresa/accesorios-dorados",
+        title="Accesorios Dorados Sociedad Limitada",
+        snippet="Datos Generales de ACCESORIOS DORADOS SOCIEDAD LIMITADA. Dirección y teléfono de ACCESORIOS DORADOS SOCIEDAD LIMITADA. Teléfono, 693... Ver teléfono 693...",
+    ),
+    SearchCandidate(
+        url="https://www.expansion.com/directorio-empresas/accesorios-dorados-sociedad-limitada_8686169_G56_17.html",
+        title="ACCESORIOS DORADOS SOCIEDAD LIMITADA",
+        snippet="El último teléfono sobre esta sociedad que figura registrado es 972256674. Si necesitas más información sobre empresas y compañías y todos sus datos fiscales, ...",
+    ),
+    SearchCandidate(
+        url="https://www.axesor.es/Informes-Empresas/8686169/ACCESORIOS_DORADOS_SOCIEDAD_LIMITADA.html",
+        title="Accesorios Dorados Sociedad Limitada, Girona",
+        snippet="Su número de teléfono es el 972256674 y su CNAE es Comercio al por menor de textiles en establecimientos especializados.",
+    ),
+    SearchCandidate(
+        url="https://empresite.eleconomista.es/ACCESORIOS-MODA-NOVEDADES.html",
+        title="Accesorios Moda Y Novedades Sl - Teléfono y dirección",
+        snippet="Para comunicarse con sus oficinas, el número de teléfono es 915695947 y puedes consultar su página web aquí: www.accesoriosmoda.com.",
+    ),
+    SearchCandidate(
+        url="https://www.instagram.com/doradoaccesorios/?hl=es",
+        title="Dorado accesorios (@doradoaccesorios)",
+        snippet="Somos importadores y fabricantes directos Medellín-Colombia Para compras al por mayor 3196792194.",
+    ),
+    SearchCandidate(
+        url="https://www.accesoriosdorado.com/contacto/",
+        title="Contacto",
+        snippet="Contacto · 573012613169 · 3012613169 · somosaccesoriosdorado@gmail.com.",
+    ),
+]
+
+
+@pytest.mark.integration
+def test_real_accesorios_dorados_phone_agreed_by_two_directories(monkeypatch, clean_database):
+    """B55257109: the right number (972 25 66 74, confirmed by the client) is the
+    one two directories give for the full razón social; a similar company's and a
+    Colombian homonym's numbers are not taken."""
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, nombre="ACCESORIOS DORADOS SL", identificador="B55257109", localidad=None)
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: _Buscador(ACCESORIOS_DORADOS_SERP))
+    monkeypatch.setattr(enrichment_service, "_fetch", _sin_descarga)
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "encontrado"
+    assert sancionado.telefono == "972256674"
+    assert sancionado.email is None and sancionado.web is None and sancionado.instagram_url is None
+    session.close()
+
+
+@pytest.mark.integration
+def test_real_moldes_diaz_name_found_from_cif_and_no_directory_profiles(monkeypatch, clean_database):
+    """A58017732 with no name on the notice: the CIF search names the company and
+    gives its phone (936853050); QDQ's own website and social accounts (stored as
+    the company's before) are not."""
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, nombre="A58017732", identificador="A58017732", localidad=None)
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    serp = [
+        SearchCandidate(
+            url="https://www.einforma.com/informacion-empresa/moldes-diaz",
+            title="Moldes Diaz SA: consulte teléfono, CIF y dirección",
+            snippet="El teléfono de MOLDES DIAZ SA es 936853050. El CIF de MOLDES DIAZ SA es A58017732. Esta empresa tiene como propósito FABRICACION DE MOLDURAS",
+        ),
+        SearchCandidate(
+            url="https://www.datoscif.es/empresa/moldes-diaz-sa",
+            title="MOLDES DIAZ SA - Informe de empresa",
+            snippet="Razón Social MOLDES DIAZ SA ; CIF A58017732 ; Teléfono 93 685 30 50 ; Órgano Administración Administrador único",
+        ),
+        SearchCandidate(
+            url="https://www.qdq.com/moldes-diaz-sa-823825",
+            title="MOLDES DIAZ, S.A., Matrices y moldes en Sant Feliu ...",
+            snippet="MOLDES DIAZ, S.A.. Matrices y moldesCalle Armenteres s/n, 08980, Sant Feliu De Llobregat, Barcelona. Abierto. Cómo llegar. Ver teléfono",
+        ),
+    ]
+    qdq_html = (
+        "<html><body><h1>MOLDES DIAZ, S.A.</h1><p>Matrices y moldes</p>"
+        '<footer><a href="https://www.linkedin.com/company/qdq">LinkedIn</a>'
+        '<a href="https://www.facebook.com/qdqoficial">Facebook</a></footer></body></html>'
+    )
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: _Buscador(serp))
+    monkeypatch.setattr(
+        enrichment_service, "_fetch", lambda client, url: qdq_html if "qdq.com" in url else _sin_descarga(client, url),
+    )
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "encontrado"
+    assert sancionado.nombre == "Moldes Diaz SA"
+    assert sancionado.telefono == "936853050"
+    assert sancionado.web is None and sancionado.linkedin_url is None and sancionado.facebook_url is None
+    session.close()
+
+
+@pytest.mark.integration
+def test_real_directory_never_gives_its_own_contact(monkeypatch, clean_database):
+    """B98854250 (Grupo Boheme Sensations): iberinform's record page carries
+    iberinform's own 900 line, mailbox and LinkedIn, plus a sidebar of other
+    companies with their CIF and phone. None of it is the company's (the client
+    got 900213215 / atencionclientes@iberinform.es / iberinform.es)."""
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, nombre="GRUPO BOHEME SENSATIONS SL", identificador="B98854250", localidad=None)
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    url = "https://www.iberinform.es/empresa/7222684/grupo-boheme-sensations"
+    html = (
+        "<html><body>"
+        '<header><a href="tel:900213215">900 213 215</a> <a href="mailto:atencionclientes@iberinform.es">Contacto</a></header>'
+        "<main><h1>GRUPO BOHEME SENSATIONS SL</h1><p>CIF: B98854250</p>"
+        "<p>Su dirección es Avenida Diputacion, 83, 5 9. 46812, Aielo De Malferit (valencia).</p></main>"
+        "<aside><p>Últimos servicios consultados: GEST BARFISA SL con NIF B60355518. Teléfono: 935894337</p></aside>"
+        "<footer>Atención al cliente 900 213 215 · atencionclientes@iberinform.es "
+        '<a href="https://www.linkedin.com/company/iberinform">LinkedIn</a></footer>'
+        "</body></html>"
+    )
+    serp = [SearchCandidate(url=url, title="GRUPO BOHEME SENSATIONS SL: CIF, Dirección y Ventas", snippet="CIF B98854250")]
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: _Buscador(serp))
+    monkeypatch.setattr(enrichment_service, "_fetch", lambda client, u: html)
+    monkeypatch.setattr(enrichment_service, "_find_legal_links", lambda html, base: [])
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "no_encontrado"
+    assert sancionado.telefono is None and sancionado.email is None
+    assert sancionado.web is None and sancionado.linkedin_url is None
+    session.close()
+
+
+@pytest.mark.integration
+def test_real_foreign_homonym_website_is_not_the_company(monkeypatch, clean_database):
+    """Ágora Patrimonial S.L. (Valencia, B97602791): agorapatrimonial.com is a
+    Colombian "Ágora Patrimonial S.A.S." Its gmail address must not be stored;
+    the phone four directories agree on (963980300) is."""
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, nombre="Ágora Patrimonial S.L.", identificador="B97602791", localidad=None)
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    serp = [
+        SearchCandidate(
+            url="https://www.einforma.com/informacion-empresa/agora-patrimonial",
+            title="Agora Patrimonial SL: teléfono, CIF y dirección",
+            snippet="¿Cuál es el número de teléfono de AGORA PATRIMONIAL SL? El teléfono de contacto de AGORA PATRIMONIAL SL es 963980300.",
+        ),
+        SearchCandidate(
+            url="https://www.informa.es/directorio-empresas/Empresa_AGORA-PATRIMONIAL.html",
+            title="Agora patrimonial sl | Directorio de empresas Informa D&B",
+            snippet="El último teléfono de contacto indicado por la empresa es el 963980300.",
+        ),
+        SearchCandidate(
+            url="https://agorapatrimonial.com/",
+            title="Agora Patrimonial",
+            snippet="Ágora Patrimonial conecta estas disciplinas bajo una sola visión, para que ... Contacto. 311 844 4587 · agorapatrimonialsas@gmail.com.",
+        ),
+    ]
+    colombia = (
+        "<html><body><h1>Agora Patrimonial</h1><p>Contacto. 311 844 4587 · agorapatrimonialsas@gmail.com</p>"
+        "<footer>© 2026 Ágora Patrimonial S.A.S. Bogotá</footer></body></html>"
+    )
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: _Buscador(serp))
+    monkeypatch.setattr(
+        enrichment_service, "_fetch", lambda client, url: colombia if "agorapatrimonial.com" in url else _sin_descarga(client, url),
+    )
+    monkeypatch.setattr(enrichment_service, "_find_legal_links", lambda html, base: [])
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "encontrado"
+    assert sancionado.telefono == "963980300"
+    assert sancionado.email is None and sancionado.web is None
+    session.close()
+
+
+@pytest.mark.integration
+def test_real_name_from_cif_then_own_privacy_page(monkeypatch, clean_database):
+    """B98854250 with no name: the bare-CIF search names it (Infonif title), the
+    name search finds its own website, whose privacy policy (RGPD data
+    controller) gives the phone the client confirmed: 620 94 07 19. The name is
+    shared with the party's other notice."""
+    session = SyncSessionLocal()
+    sancionado = _opportunity(session, nombre="B98854250", identificador="B98854250", localidad=None)
+    otra = _opportunity(session, nombre=None, identificador="B98854250", localidad=None)
+    otra.identidad_clave = sancionado.identidad_clave = "B98854250"
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    privacidad = "https://bohemesensations.com/politica-de-privacidad/"
+    provider = FixtureProvider({
+        "B98854250": [SearchCandidate(
+            url="https://infonif.economia3.com/ficha-empresa/grupo-boheme-sensations-sl",
+            title="GRUPO BOHEME SENSATIONS SL - NIF B98854250 - Infonif",
+            snippet="Consulta la información sobre GRUPO BOHEME SENSATIONS SL con NIF B98854250.",
+        )],
+        "GRUPO BOHEME SENSATIONS SL telefono": [SearchCandidate(
+            url=privacidad, title="Política de privacidad",
+            snippet="GRUPO BOHEME SENSATIONS, S. L. trata la información que nos facilita con las siguientes finalidades",
+        )],
+    })
+    pagina = (
+        "<html><body><h2>Política de privacidad</h2><p>Responsable: GRUPO BOHEME SENSATIONS, S. L. "
+        "Domicilio social: Avda. Diputación, 83 – 5 9 46812. Teléfono: +34 620 94 07 19</p></body></html>"
+    )
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: provider)
+    monkeypatch.setattr(
+        enrichment_service, "_fetch", lambda client, url: pagina if "bohemesensations.com" in url else _sin_descarga(client, url),
+    )
+    monkeypatch.setattr(enrichment_service, "_find_legal_links", lambda html, base: [])
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "encontrado"
+    assert sancionado.nombre == "GRUPO BOHEME SENSATIONS SL"
+    assert sancionado.telefono == "+34 620 94 07 19"
+    assert sancionado.web == "https://bohemesensations.com"
+    session.refresh(otra)
+    assert otra.nombre == "GRUPO BOHEME SENSATIONS SL" and otra.telefono == "+34 620 94 07 19"
+    session.close()
+
+
+@pytest.mark.integration
+def test_phone_already_carried_by_other_parties_is_discarded(monkeypatch, clean_database):
+    """A number that two other companies already have is an office's or a
+    directory's line, not this company's."""
+    session = SyncSessionLocal()
+    for cif in ("B11111111", "B22222222"):
+        otra = _opportunity(session, nombre=None, identificador=cif)
+        otra.identidad_clave = cif
+        otra.telefono = "961 111 222"
+    sancionado = _opportunity(session)
+    sancionado.identidad_clave = "B12345678"
+    session.commit()
+    _enable(monkeypatch)
+    _sin_robots(monkeypatch)
+    html = "<html><body><p>ACME LOGISTICA SL - CIF B12345678</p><p>Teléfono: 961 111 222</p></body></html>"
+    monkeypatch.setattr(enrichment_service, "get_provider", lambda name: _Buscador([SearchCandidate(url="https://acmelogistica.test/")]))
+    monkeypatch.setattr(enrichment_service, "_fetch", lambda client, url: html)
+    monkeypatch.setattr(enrichment_service, "_find_legal_links", lambda html, base: [])
+
+    result = enrichment_service.enrich_sancionado(session, sancionado)
+    session.commit()
+
+    assert result.estado == "no_encontrado"
+    assert sancionado.telefono is None
+    assert "961 111 222" in (result.evidencia or "")
     session.close()

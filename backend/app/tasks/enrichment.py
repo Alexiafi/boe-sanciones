@@ -8,15 +8,26 @@ Celery broker involved.
 
 from __future__ import annotations
 
-from datetime import date
+import logging
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 
 from app.celery_app import celery
-from app.database import SyncSessionLocal
+from app.database import SyncSessionLocal, sync_engine
 from app.models.documento import BoeDocumento
+from app.models.enriquecimiento import EnriquecimientoIntento
 from app.models.sancionado import Sancionado
+from app.services.configuracion import leer_configuracion
 from app.services.enrichment.service import EnrichmentDisabled, enrich_sancionado, enrichment_available
+
+logger = logging.getLogger(__name__)
+
+# Automatic enrichment of new company notices (see run_enriquecimiento_automatico).
+AUTO_LOTE = 40          # companies per run (a run every 15 min)
+AUTO_DIAS = 7           # only notices that arrived in the last week
+_MADRID = ZoneInfo("Europe/Madrid")
 
 
 def run_enrichment_for(sancionado_id: int) -> dict:
@@ -72,6 +83,80 @@ def run_batch(limite: int, fecha_desde: date | None = None, fecha_hasta: date | 
         raise
     finally:
         db.close()
+
+
+def intentos_de_hoy(db) -> int:
+    inicio = datetime.now(_MADRID).replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(db.execute(
+        select(func.count(EnriquecimientoIntento.id)).where(EnriquecimientoIntento.created_at >= inicio)
+    ).scalar() or 0)
+
+
+def run_enriquecimiento_automatico(lote: int = AUTO_LOTE) -> dict:
+    """Search the web for the razón social and contact of new COMPANY notices
+    (complete CIF, still "pendiente", arrived in the last ``AUTO_DIAS`` days),
+    newest first, within the daily ceiling of the runtime configuration.
+
+    Off unless the operator turned ``enriquecimiento_automatico`` on in
+    "Configuración" (on top of the ``.env`` gate): each company costs one or two
+    paid searches. A party's other notices are answered for free afterwards —
+    from what was found (``compartir_perfil``) or from the query cache. People
+    (DNI/NIE) are never searched automatically."""
+    available, reason = enrichment_available()
+    if not available:
+        return {"skipped": True, "reason": reason}
+    db = SyncSessionLocal()
+    lock = sync_engine.connect()
+    bloqueado = False
+    procesados: list[dict] = []
+    try:
+        config = leer_configuracion(db)
+        if not config.enriquecimiento_automatico:
+            return {"skipped": True, "reason": "enriquecimiento_automatico desactivado"}
+        bloqueado = bool(lock.execute(text("SELECT pg_try_advisory_lock(hashtext('enriquecimiento-auto'))")).scalar())
+        if not bloqueado:
+            return {"skipped": True, "reason": "already_running"}
+        restantes = config.enriquecimiento_max_por_dia - intentos_de_hoy(db)
+        if restantes <= 0:
+            return {"skipped": True, "reason": "tope_diario"}
+        desde = datetime.now(timezone.utc) - timedelta(days=AUTO_DIAS)
+        candidatos = db.execute(
+            select(Sancionado).where(
+                Sancionado.contacto_estado == "pendiente",
+                Sancionado.created_at >= desde,
+                # A complete CIF (company); DNI/NIE start with a digit or X/Y/Z.
+                Sancionado.identidad_clave.op("~")("^[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J]$"),
+            ).order_by(Sancionado.id.desc()).limit(min(lote, restantes))
+        ).scalars().all()
+        for sancionado in candidatos:
+            db.refresh(sancionado)
+            if sancionado.contacto_estado != "pendiente":
+                continue  # answered meanwhile by a sibling of the same CIF
+            try:
+                result = enrich_sancionado(db, sancionado)
+                db.commit()
+                procesados.append({"sancionado_id": sancionado.id, "estado": result.estado})
+            except EnrichmentDisabled:
+                db.rollback()
+                break
+            except Exception:
+                db.rollback()
+                logger.exception("Enriquecimiento automático fallido para %s", sancionado.id)
+        return {"total": len(procesados), "items": procesados}
+    finally:
+        if bloqueado:
+            try:
+                lock.execute(text("SELECT pg_advisory_unlock(hashtext('enriquecimiento-auto'))"))
+                lock.commit()
+            except Exception:
+                pass
+        lock.close()
+        db.close()
+
+
+@celery.task(name="app.tasks.enrichment.enriquecimiento_automatico_task")
+def enriquecimiento_automatico_task() -> dict:
+    return run_enriquecimiento_automatico()
 
 
 @celery.task(name="app.tasks.enrichment.enrich_sancionado_task")

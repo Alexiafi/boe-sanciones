@@ -76,12 +76,39 @@ def test_parses_organic_results_and_skips_paid_entries(monkeypatch):
     assert results[0].snippet == "desc 1"
 
 
-def test_failed_task_status_returns_empty_list(monkeypatch):
+def test_failed_task_is_retried_then_reported_as_error(monkeypatch):
+    """A task that does not complete is not "nothing found": live on 2026-10-17
+    DataForSEO answered "Internal SE Server Error" to about one query in three,
+    and those parties were stored as "no encontrado"."""
     _configure(monkeypatch)
-    _FakeClient.payload = {"tasks": [{"status_code": 40501, "status_message": "Invalid Field", "result": None}]}
+    _FakeClient.payload = {"tasks": [{"status_code": 50000, "status_message": "Internal SE Server Error.", "result": None}]}
     monkeypatch.setattr(dataforseo_module.httpx, "Client", _FakeClient)
+    monkeypatch.setattr(dataforseo_module.time, "sleep", lambda s: None)
 
-    assert DataForSEOProvider().buscar("consulta cualquiera", 10) == []
+    with pytest.raises(SearchProviderError, match="Internal SE Server Error"):
+        DataForSEOProvider().buscar("consulta cualquiera", 10)
+
+
+def test_failed_task_recovers_on_retry(monkeypatch):
+    _configure(monkeypatch)
+    respuestas = [
+        {"tasks": [{"status_code": 50000, "status_message": "Internal SE Server Error.", "result": None}]},
+        {"tasks": [{"status_code": 20000, "result": [{"items": [
+            {"type": "organic", "url": "https://www.einforma.com/informacion-empresa/moldes-diaz",
+             "title": "Moldes Diaz SA: consulte teléfono, CIF y dirección",
+             "description": "El teléfono de MOLDES DIAZ SA es 936853050. El CIF de MOLDES DIAZ SA es A58017732."},
+        ]}]}]},
+    ]
+
+    class _Secuencia(_FakeClient):
+        def post(self, url, json=None):
+            return _FakeResponse(respuestas.pop(0))
+
+    monkeypatch.setattr(dataforseo_module.httpx, "Client", _Secuencia)
+    monkeypatch.setattr(dataforseo_module.time, "sleep", lambda s: None)
+
+    resultados = DataForSEOProvider().buscar("A58017732", 10)
+    assert [r.url for r in resultados] == ["https://www.einforma.com/informacion-empresa/moldes-diaz"]
 
 
 def test_missing_credentials_never_constructs_http_client(monkeypatch):

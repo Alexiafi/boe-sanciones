@@ -72,7 +72,7 @@ export default function ConfiguracionPage() {
     <div>
       <PageHeader
         title="Configuración"
-        description="Cómo se usa OpenAI en la captación diaria y en el histórico. Se guarda en la base de datos y se aplica de inmediato."
+        description="Cómo se usa OpenAI en la captación diaria y en el histórico, y la búsqueda de contacto de empresas. Se guarda en la base de datos y se aplica de inmediato."
       />
 
       {loading && <Spinner />}
@@ -159,6 +159,46 @@ export default function ConfiguracionPage() {
                       max={5000}
                       value={config.teu_max_por_ejecucion}
                       onChange={(event) => set("teu_max_por_ejecucion", Number(event.target.value))}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="mt-8 border-t border-outline-variant/15 pt-6">
+                <CardTitle>Nombre y teléfono de empresas nuevas</CardTitle>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Busca en internet, solo, la razón social y el teléfono/email de cada aviso nuevo de una empresa (CIF),
+                  cada 15 minutos entre las 07:00 y las 21:45. Solo guarda un teléfono si aparece junto al CIF de la empresa,
+                  en su propia web o en dos directorios distintos. Las personas (DNI/NIE) nunca se buscan solas.
+                </p>
+                {!entorno.enriquecimiento_disponible && (
+                  <Notice tone="warning" className="mt-4">
+                    El enriquecimiento no está disponible en el servidor: {entorno.enriquecimiento_motivo}
+                  </Notice>
+                )}
+                <div className="mt-5 space-y-4">
+                  <label className="flex items-start gap-3 rounded-xl bg-surface-container-low p-4 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={config.enriquecimiento_automatico}
+                      onChange={(event) => set("enriquecimiento_automatico", event.target.checked)}
+                    />
+                    <span>
+                      <span className="block font-medium text-on-surface">Buscar automáticamente nombre y teléfono de empresas</span>
+                      <span className="block text-on-surface-variant">
+                        Cada empresa cuesta una o dos búsquedas de pago (unos 0,001–0,002 $ cada una). Los demás avisos de la
+                        misma empresa se rellenan gratis con lo encontrado.
+                      </span>
+                    </span>
+                  </label>
+                  <Field label="Máx. búsquedas de contacto al día" hint="Tope diario, automáticas y manuales juntas.">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={3000}
+                      value={config.enriquecimiento_max_por_dia}
+                      onChange={(event) => set("enriquecimiento_max_por_dia", Number(event.target.value))}
                     />
                   </Field>
                 </div>

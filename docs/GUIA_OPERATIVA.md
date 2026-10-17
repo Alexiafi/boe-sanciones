@@ -239,11 +239,27 @@ por si en el futuro se vuelve a sembrar una versión provisional.
    `EMAIL_SENDING_ENABLED=true` y prueba un envío. Revisa el resultado (incluidos los adjuntos) en
    `http://localhost:8025`. Cuando estés satisfecha, cambia la configuración SMTP a tu buzón real.
 
-## 4. Enriquecimiento de contacto (sesión 2, recordatorio)
+## 4. Enriquecimiento de contacto (nombre y teléfono de empresas)
 
-Sigue el mismo patrón: desactivado por defecto, cascada de proveedores documentada en el README, activable
-con `ENRICHMENT_ENABLED=true` y un proveedor configurado. Recomendado: DataForSEO (bajo coste, saldo
-prepago) o Serper (2.500 consultas gratis). Ver README §"Enriquecimiento de contacto".
+Se activa con `ENRICHMENT_ENABLED=true` y un proveedor en el `.env`. Con las claves de **Serper** y
+**DataForSEO** puestas, se usa Serper primero (más fiable y la mitad de caro, unos 0,001 $ por búsqueda) y
+DataForSEO solo si Serper falla.
+
+Cómo busca una empresa:
+
+1. Sin nombre en el aviso, busca el CIF tal cual y saca la razón social de los resultados que llevan ese CIF
+   (eInforma, Infonif, DatosCIF…). El nombre se guarda en todos los avisos de ese CIF.
+2. Busca «razón social telefono» y lee los resultados de esa empresa y su propia web (contacto, aviso legal,
+   política de privacidad).
+3. Solo guarda un teléfono o email si aparece **pegado al CIF o al nombre completo** de la empresa y
+   lo respalda: una página con su CIF, su propia web (demostrada por el CIF o por el nombre con la misma forma
+   jurídica) o dos directorios distintos que dan el mismo número. Nunca el número del propio directorio
+   (cabecera, pie, «empresas consultadas»), ni el de un organismo (notificaciones, boletines, listas), ni un
+   900/902, ni uno que ya tienen otras empresas.
+
+En **Configuración → Nombre y teléfono de empresas nuevas** se activa la búsqueda automática: cada 15 minutos
+(07:00–21:45) busca los avisos nuevos de empresas (CIF) de la última semana, con un tope diario. Las personas
+(DNI/NIE) nunca se buscan solas; se pueden buscar a mano desde su aviso.
 
 ## 5. Resumen: qué requiere tu confirmación explícita cada vez
 

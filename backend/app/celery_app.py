@@ -65,4 +65,10 @@ celery.conf.beat_schedule = {
         "task": "app.tasks.extraccion_batch.procesar_batches_pendientes_task",
         "schedule": crontab(minute="*/5"),
     },
+    # Razón social + phone/email of new company notices. A no-op unless
+    # "enriquecimiento_automatico" is on in Configuración (paid searches).
+    "enriquecimiento-automatico": {
+        "task": "app.tasks.enrichment.enriquecimiento_automatico_task",
+        "schedule": crontab(minute="*/15", hour="7-21"),
+    },
 }

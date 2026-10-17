@@ -10,7 +10,7 @@ import logging
 import httpx
 
 from app.config import settings
-from app.services.enrichment.base import SearchCandidate
+from app.services.enrichment.base import SearchCandidate, SearchProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,11 @@ class SerperProvider:
                 )
                 response.raise_for_status()
                 data = response.json()
-        except Exception:
+        except Exception as exc:
+            # A failed search is not "nothing found": the caller records an error
+            # (or falls back to the other provider) instead of "no encontrado".
             logger.exception("Serper search failed for query %r", query)
-            return []
+            raise SearchProviderError(f"Serper falló: {type(exc).__name__}") from exc
 
         # knowledgeGraph/answerBox often carry the company's own website and
         # phone directly; surface them as first-class candidates so the cascade
