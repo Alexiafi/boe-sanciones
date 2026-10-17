@@ -1,0 +1,19 @@
+# Everything is LF in the working tree on every OS (the code runs inside Linux containers),
+# except the Windows launchers and PowerShell scripts.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.docx binary
+*.xlsx binary
+*.zip binary
+*.dump binary

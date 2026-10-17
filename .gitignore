@@ -35,3 +35,35 @@ frontend/out/
 # IDE
 .idea/
 .vscode/
+
+# Serena MCP cache
+.serena/
+
+# Generated contracts/invoices (client data)
+backend/data/
+
+# Paquete de entrega generado (contiene el .env con claves)
+dist/
+
+# Celery beat state (written at runtime through the ./backend bind mount)
+backend/celerybeat-schedule*
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Internal material: kept on the developer's machine, never pushed (the client's PC pulls this repo)
+AGENTS.md
+PLAN.md
+Propuesta_tecnica_economica_boe_sanciones.docx
+boe_sancionadores_2026.md
+indicaciones_basicas.md
+docs/PENDIENTES.md
+.cursor/
+stitch_historial_de_multas/
+boe.py
+/requirements.txt
+deliverables/
+.tmp_*/
+output/
+tmp/
+scripts/ENTREGA.md
