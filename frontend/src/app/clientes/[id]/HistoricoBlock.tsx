@@ -11,7 +11,7 @@ const AVISO_TEU =
   "Para fechas anteriores solo se muestra lo que este sistema haya acumulado por sí mismo desde su puesta en marcha; " +
   "el BOE ordinario sí cubre el histórico completo.";
 
-export function HistoricoBlock({ clienteId }: { clienteId: number }) {
+export function HistoricoBlock({ clienteId, onSancionesVinculadas }: { clienteId: number; onSancionesVinculadas?: () => void }) {
   const [resultados, setResultados] = useState<HistoricoResultado[]>([]);
   const [loading, setLoading] = useState(true);
   const [buscando, setBuscando] = useState(false);
@@ -44,9 +44,17 @@ export function HistoricoBlock({ clienteId }: { clienteId: number }) {
       const resp = (await api.clientes.buscarHistorico(clienteId, incluirTeu)) as unknown as {
         resultados: HistoricoResultado[];
         avisos: string[];
+        sanciones_vinculadas?: number;
       };
       setResultados(resp.resultados);
-      setAvisos(resp.avisos);
+      const avisosBusqueda = [...resp.avisos];
+      if (resp.sanciones_vinculadas) {
+        avisosBusqueda.push(
+          `${resp.sanciones_vinculadas} ${resp.sanciones_vinculadas === 1 ? "sanción del panel se ha asignado" : "sanciones del panel se han asignado"} a este cliente por coincidencia de identificador.`
+        );
+        onSancionesVinculadas?.();
+      }
+      setAvisos(avisosBusqueda);
     } catch (error) {
       setAvisos([`No se pudo buscar el histórico: ${error}`]);
     } finally {
@@ -70,7 +78,8 @@ export function HistoricoBlock({ clienteId }: { clienteId: number }) {
     try {
       await api.clientes.extraerHistorico(clienteId, Array.from(seleccion), true);
       setExtraccionNotice(
-        "Extracción encolada. Requiere OpenAI configurado y habilitado en el servidor; si no lo está, no se ejecutará ningún cargo. Recarga en unos segundos para ver el resultado."
+        "Extracción encolada. En modo tiempo real el resultado aparece aquí en un par de minutos; en modo batch (ver Configuración) " +
+          "llega cuando OpenAI termine el lote, normalmente en menos de una hora. Pulsa «Buscar histórico» o recarga para actualizar."
       );
       setSeleccion(new Set());
     } catch (error) {

@@ -47,7 +47,9 @@ async def dashboard_stats(db: AsyncSession = Depends(get_db)):
     )).scalar() or 0
 
     last_run = (await db.execute(
-        select(ScrapingRun).order_by(ScrapingRun.created_at.desc()).limit(1)
+        # The daily pipeline only: a same-day historico_cliente audit row
+        # must not show up as "the last scraping".
+        select(ScrapingRun).where(ScrapingRun.tipo == "diario").order_by(ScrapingRun.created_at.desc()).limit(1)
     )).scalar_one_or_none()
 
     top_organismos = (await db.execute(

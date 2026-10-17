@@ -55,7 +55,8 @@ const MAPAS: Record<Dominio, Record<string, { label: string; tone: ChipTone }>> 
     cliente: { label: "Cliente", tone: "success" },
   },
   estado_cliente: {
-    activo: { label: "Activo", tone: "success" },
+    activo: { label: "Cliente", tone: "success" },
+    informado: { label: "Solo info", tone: "warning" },
     inactivo: { label: "Inactivo", tone: "neutral" },
   },
   contacto_estado: {

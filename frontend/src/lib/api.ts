@@ -1,4 +1,12 @@
-import type { Sancionado } from "@/lib/types";
+import type {
+  AgendaItem,
+  AgendaResumen,
+  ConfiguracionResponse,
+  ConfiguracionRuntime,
+  ExtraccionBatch,
+  ModoExtraccion,
+  Sancionado,
+} from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -11,7 +19,18 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    let message = `API error: ${res.status} ${res.statusText}`;
+    try {
+      const body = await res.json();
+      const detail = body?.detail;
+      if (typeof detail === "string") message = detail;
+      else if (Array.isArray(detail) && detail[0]?.msg) {
+        message = detail.map((item: { msg: string }) => item.msg).join(". ");
+      }
+    } catch {
+      /* keep the generic status message */
+    }
+    throw new Error(message);
   }
   return res.json();
 }
@@ -26,11 +45,23 @@ export const api = {
       const qs = new URLSearchParams(params).toString();
       return fetchAPI<Record<string, unknown>>(`/api/sanciones?${qs}`);
     },
+    create: (data: Record<string, unknown>) =>
+      fetchAPI<Record<string, unknown>>("/api/sanciones", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     get: (id: number) => fetchAPI<Record<string, unknown>>(`/api/sanciones/${id}`),
     update: (
       id: number,
       data: {
         estado_oportunidad?: string;
+        nombre?: string | null;
+        identificador?: string | null;
+        tipo_identificador?: string | null;
+        direccion?: string | null;
+        localidad?: string | null;
+        provincia?: string | null;
+        codigo_postal?: string | null;
         telefono?: string | null;
         email?: string | null;
         web?: string | null;
@@ -73,6 +104,10 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    delete: (id: number) =>
+      fetchAPI<{ deleted: boolean; sanciones_liberadas: number }>(`/api/clientes/${id}?confirmar=true`, {
+        method: "DELETE",
+      }),
     addNota: (id: number, data: { texto: string; autor?: string | null }) =>
       fetchAPI<Record<string, unknown>>(`/api/clientes/${id}/notas`, {
         method: "POST",
@@ -83,7 +118,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    updateAccion: (clienteId: number, accionId: number, data: { estado?: string; notas?: string | null }) =>
+    updateAccion: (
+      clienteId: number,
+      accionId: number,
+      data: { estado?: string; notas?: string | null; tipo?: string; titulo?: string; fecha_programada?: string | null }
+    ) =>
       fetchAPI<Record<string, unknown>>(`/api/clientes/${clienteId}/acciones/${accionId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -106,10 +145,21 @@ export const api = {
         `/api/clientes/${id}/documentos/validar?tipo=${tipo}`
       ),
     listDocumentos: (id: number) => fetchAPI<Record<string, unknown>[]>(`/api/clientes/${id}/documentos`),
-    crearContrato: (id: number, precio: number) =>
+    crearContrato: (
+      id: number,
+      precio: number,
+      servicio: string,
+      formaPago: string,
+      fechaInicio?: string
+    ) =>
       fetchAPI<Record<string, unknown>>(`/api/clientes/${id}/contrato`, {
         method: "POST",
-        body: JSON.stringify({ precio }),
+        body: JSON.stringify({
+          precio,
+          servicio,
+          forma_pago: formaPago,
+          fecha_inicio: fechaInicio || null,
+        }),
       }),
     crearFactura: (id: number, cuantia: number, concepto: string) =>
       fetchAPI<Record<string, unknown>>(`/api/clientes/${id}/factura`, {
@@ -144,8 +194,21 @@ export const api = {
       fetchAPI<{ deleted: boolean }>(`/api/clientes/${id}/vinculos/${vinculoId}`, {
         method: "DELETE",
       }),
+    convertirVinculo: (id: number, vinculoId: number) =>
+      fetchAPI<{ cliente: Record<string, unknown>; vinculo: Record<string, unknown>; created: boolean }>(
+        `/api/clientes/${id}/vinculos/${vinculoId}/convertir`,
+        { method: "POST" }
+      ),
     radarAlertas: () =>
       fetchAPI<Record<string, number>>("/api/clientes/alertas/radar", { method: "POST" }),
+  },
+
+  agenda: {
+    list: (params: Record<string, string> = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return fetchAPI<AgendaItem[]>(`/api/agenda${qs ? `?${qs}` : ""}`);
+    },
+    resumen: () => fetchAPI<AgendaResumen>("/api/agenda/resumen"),
   },
 
   historico: {
@@ -174,6 +237,8 @@ export const api = {
         body: JSON.stringify(data),
       }),
     backfillRuns: () => fetchAPI<Record<string, unknown>[]>("/api/historico/backfill/runs"),
+    reindexarPendientes: () => fetchAPI<{ pendientes: number }>("/api/historico/reindexar/pendientes"),
+    reindexar: () => fetchAPI<{ task_id: string; status: string }>("/api/historico/reindexar", { method: "POST" }),
   },
 
   documentos: {
@@ -213,15 +278,33 @@ export const api = {
   },
 
   scraping: {
-    trigger: (fecha: string, options?: { force?: boolean; permitir_extraccion_pago?: boolean }) =>
+    trigger: (
+      fecha: string,
+      options?: { force?: boolean; permitir_extraccion_pago?: boolean; modo_extraccion?: ModoExtraccion | null }
+    ) =>
       fetchAPI<Record<string, unknown>>("/api/scraping/trigger", {
         method: "POST",
         body: JSON.stringify({ fecha, ...options }),
       }),
+    catchUp: () => fetchAPI<{ task_id: string; status: string }>("/api/scraping/catch-up", { method: "POST" }),
     runs: () => fetchAPI<Record<string, unknown>[]>("/api/scraping/runs"),
+    batches: () => fetchAPI<ExtraccionBatch[]>("/api/scraping/batches"),
+    comprobarBatches: () =>
+      fetchAPI<{ task_id: string; status: string }>("/api/scraping/batches/comprobar", { method: "POST" }),
     status: (taskId: string) =>
       fetchAPI<Record<string, unknown>>(`/api/scraping/status/${taskId}`),
     gaps: (days = 30) =>
-      fetchAPI<{ desde: string; hasta: string; days: number; gaps: string[]; note: string }>(`/api/scraping/gaps?days=${days}`),
+      fetchAPI<{ desde: string; hasta: string; days: number; gaps: string[]; pendientes_catch_up: string[]; note: string }>(
+        `/api/scraping/gaps?days=${days}`
+      ),
+  },
+
+  configuracion: {
+    get: () => fetchAPI<ConfiguracionResponse>("/api/configuracion"),
+    update: (data: Partial<ConfiguracionRuntime>) =>
+      fetchAPI<ConfiguracionResponse>("/api/configuracion", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
   },
 };

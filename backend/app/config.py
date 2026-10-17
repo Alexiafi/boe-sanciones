@@ -12,7 +12,18 @@ class Settings(BaseSettings):
 
     # OpenAI
     openai_api_key: str = ""
-    openai_model: str = "gpt-5.4-2026-03-05"
+    # Structured extraction is simple, so the cheapest tier is the default
+    # (nano ≈ 1/4 the price of mini). The model can still be raised from .env.
+    openai_model: str = "gpt-5.4-nano"
+    # gpt-5.x are reasoning models: left on their default effort they spend
+    # thousands of billed "thinking" tokens per document on what is a
+    # copy-the-fields task. "low" keeps the cost close to the input price.
+    # Empty string = do not send the parameter.
+    openai_reasoning_effort: str = "low"
+    # Real-time extraction runs this many requests at once (one document each).
+    # Sequential calls were what made a normal day take 3+ hours.
+    openai_concurrency: int = Field(default=6, ge=1, le=16)
+    openai_timeout_s: float = Field(default=120.0, gt=0)
     # Paid extraction is intentionally opt-in. A manual request must also set
     # ``permitir_extraccion_pago`` before the pipeline will call OpenAI.
     openai_extraction_enabled: bool = False
@@ -32,6 +43,9 @@ class Settings(BaseSettings):
 
     # App
     scraping_interval_hours: int = 12
+    # Parallel downloads of BOE/TEU documents (network + PDF→text only; every
+    # database write stays on the run's own thread).
+    descarga_workers: int = Field(default=8, ge=1, le=32)
     gap_detection_max_days: int = Field(default=30, ge=1)
     log_level: str = "INFO"
 
@@ -98,8 +112,10 @@ class Settings(BaseSettings):
     emisor_cif: str = ""
     emisor_direccion: str = ""
     emisor_email: str = ""
+    emisor_iban: str = ""
     emisor_iva_porcentaje: float = Field(default=21.0, ge=0, le=100)
     factura_serie: str = ""
+    factura_vencimiento_dias: int = Field(default=30, ge=0, le=365)
     documentos_dir: str = "/app/data/documentos"
 
     # Email sending (session 3). Off by default; POST endpoints additionally

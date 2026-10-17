@@ -120,10 +120,15 @@ export default function NotificacionesPage() {
                     <span className="shrink-0 text-xs text-on-surface-variant">{formatDateTime(n.created_at)}</span>
                   </div>
                   {n.mensaje && <p className="mt-1 truncate text-sm text-on-surface-variant">{n.mensaje}</p>}
+                  {n.identificador && !n.mensaje?.includes(n.identificador) && (
+                    <p className="mt-1 text-xs text-on-surface-variant">
+                      DNI/CIF: <span className="font-mono">{n.identificador}</span>
+                    </p>
+                  )}
                   <div className="mt-2 flex items-center gap-3">
                     {n.cliente_id && (
                       <Link href={`/clientes/${n.cliente_id}`} className="text-xs font-medium text-primary hover:underline">
-                        Ver cliente
+                        Ver cliente{n.cliente_nombre ? `: ${n.cliente_nombre}` : ""}
                       </Link>
                     )}
                     {n.sancionado_id && (

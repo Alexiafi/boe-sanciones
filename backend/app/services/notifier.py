@@ -7,7 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.cliente import VinculoCliente
+from app.models.cliente import Cliente, VinculoCliente
 from app.models.notificacion import Notificacion
 from app.models.sancionado import Sancionado
 from app.services.mailer import email_sending_available, enviar_email
@@ -30,13 +30,25 @@ def create_inapp_notification(
     ``services/alertas.ejecutar_radar_clientes``) — that's what the
     "Solo mis clientes" filter in /notificaciones matches on.
     """
+    # An opportunity the pipeline already attached to a client raises the
+    # "de cliente" alert under the client's own name, not as a bare CIF.
+    if cliente_id is None and sancionado.cliente_id is not None:
+        cliente_id = sancionado.cliente_id
+        vinculo_id = vinculo_id if vinculo_id is not None else sancionado.vinculo_id
+        if tipo == "nueva_sancion":
+            tipo = "nueva_sancion_cliente"
+
     rol = None
-    titular = sancionado.nombre
+    titular = sancionado.nombre or sancionado.identificador
     if vinculo_id is not None:
         vinculo = db.get(VinculoCliente, vinculo_id)
         if vinculo is not None:
             titular = vinculo.nombre or titular
             rol = vinculo.rol
+    elif cliente_id is not None:
+        cliente = db.get(Cliente, cliente_id)
+        if cliente is not None:
+            titular = cliente.nombre_razon_social
 
     if cliente_id is not None:
         titulo = f"Nueva sanción de cliente: {titular or 'Desconocido'}"
@@ -46,6 +58,8 @@ def create_inapp_notification(
         titulo = f"Nueva sanción: {titular or 'Desconocido'}"
 
     partes = []
+    if sancionado.identificador:
+        partes.append(f"ID: {sancionado.identificador}")
     if sancionado.organismo_emisor:
         partes.append(f"Organismo: {sancionado.organismo_emisor}")
     if sancionado.tipo_infraccion:

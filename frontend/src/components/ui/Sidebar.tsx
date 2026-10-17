@@ -6,12 +6,14 @@ import { useEffect, useState } from "react";
 import {
   Bell,
   Building2,
+  CalendarClock,
   ChevronRight,
   CircleUserRound,
   FileClock,
   Gauge,
   History,
   LayoutDashboard,
+  Plus,
   Search,
   Settings2,
   ShieldCheck,
@@ -25,12 +27,14 @@ const LINKS = [
   { href: "/sanciones", label: "Panel de Multas", icon: ShieldCheck },
   { href: "/historial", label: "Historial", icon: History },
   { href: "/clientes", label: "Clientes", icon: UsersRound },
+  { href: "/agenda", label: "Agenda", icon: CalendarClock },
   { href: "/consulta", label: "Consulta DNI/CIF", icon: Search },
   { href: "/notificaciones", label: "Notificaciones", icon: Bell },
   { href: "/scraping", label: "Operación", icon: Gauge },
+  { href: "/configuracion", label: "Configuración", icon: Settings2 },
 ];
 
-const MOBILE_LINKS = LINKS.slice(0, 5);
+const MOBILE_LINKS = LINKS.slice(0, 6);
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -130,6 +134,13 @@ export function Sidebar() {
         </div>
 
         <div className="mt-auto px-4 pb-5">
+          <Link
+            href="/sanciones/nueva"
+            className="mb-3 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(6,31,71,0.18)] hover:opacity-95"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.4} />
+            Nueva multa
+          </Link>
           <div className="mb-3 rounded-2xl bg-primary p-4 text-white shadow-[0_14px_30px_rgba(6,31,71,0.2)]">
             <div className="mb-3 flex items-center gap-2 text-on-primary-container">
               <FileClock className="h-4 w-4" />
@@ -138,8 +149,8 @@ export function Sidebar() {
             <p className="text-sm font-semibold">Histórico BOE indexado</p>
             <p className="mt-1 text-[11px] leading-relaxed text-white/65">Consulta y seguimiento desde un único expediente.</p>
           </div>
-          <Link href="/scraping" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-sidebar-fg hover:bg-white hover:text-primary">
-            <Settings2 className="h-4 w-4" /> Configuración operativa
+          <Link href="/configuracion" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-medium text-sidebar-fg hover:bg-white hover:text-primary">
+            <Settings2 className="h-4 w-4" /> Configuración
           </Link>
           <div className="mt-2 flex items-center gap-2 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-outline">
             <Building2 className="h-3.5 w-3.5" /> Entorno privado · v1.0

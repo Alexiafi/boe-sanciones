@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
+from app.services.boe_client import absoluta_url_boe
 from app.database import SyncSessionLocal, get_db
 from app.api.documentos import _respuesta_copia_local
 from app.models.archivo import DocumentoArchivo
@@ -35,6 +36,7 @@ from app.schemas.historico import (
 from app.services.historico.busqueda import consultar_historico
 from app.services.historico.teu_publico import fuera_de_ventana_teu, ventana_publica_desde
 from app.tasks.historico_backfill import backfill_available, plan_backfill, run_backfill_task, token_confirmacion
+from app.tasks.historico_reindexado import pendientes_de_reindexar, reindexar_task
 
 router = APIRouter(prefix="/api/historico", tags=["historico"])
 
@@ -114,6 +116,29 @@ async def consulta(data: ConsultaRequest):
     )
 
 
+@router.get("/reindexar/pendientes", response_model=dict)
+async def reindexar_pendientes():
+    """How many already-downloaded documents are missing from the index."""
+
+    def _run() -> int:
+        sync_db = SyncSessionLocal()
+        try:
+            return pendientes_de_reindexar(sync_db)
+        finally:
+            sync_db.close()
+
+    return {"pendientes": await run_in_threadpool(_run)}
+
+
+@router.post("/reindexar", response_model=dict)
+async def reindexar():
+    """Index every document the daily pipeline already downloaded but that
+    is missing from the historical index. Free (regex only, no network,
+    no OpenAI) and idempotent — see tasks/historico_reindexado.py."""
+    task = reindexar_task.delay()
+    return {"task_id": task.id, "status": "queued"}
+
+
 @router.get("/cobertura", response_model=HistoricoCoberturaOut)
 async def cobertura(db: AsyncSession = Depends(get_db)):
     """States what is ACTUALLY indexed, not what was intended — computed
@@ -174,7 +199,8 @@ async def list_historico(
         {
             "id": d.id, "boe_id": d.boe_id, "fuente": d.fuente,
             "fecha_publicacion": d.fecha_publicacion.isoformat(), "titulo": d.titulo,
-            "departamento_nombre": d.departamento_nombre, "url_pdf": d.url_pdf, "url_html": d.url_html,
+            "departamento_nombre": d.departamento_nombre,
+            "url_pdf": absoluta_url_boe(d.url_pdf), "url_html": absoluta_url_boe(d.url_html),
             "url_xml": d.url_xml, "origen_indexado": d.origen_indexado,
             "fuera_de_ventana_teu": d.fuente == "teu" and fuera_de_ventana_teu(d.fecha_publicacion, hoy=hoy),
             "tiene_copia_local": d.boe_id in archivados or bool(d.texto_plano or d.extracto),

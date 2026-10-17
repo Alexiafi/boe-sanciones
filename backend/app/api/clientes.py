@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import math
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
 from app.api.sanciones import _build_url_documento
+from app.services.boe_client import absoluta_url_boe
 from app.config import settings
 from app.database import SyncSessionLocal, get_db
 from app.models.cliente import AccionAgendada, ActividadCliente, Cliente, NotaCliente, VinculoCliente
@@ -49,7 +50,8 @@ from app.schemas.historico import (
     HistoricoResultadoOut,
 )
 from app.services.alertas import ejecutar_radar_clientes
-from app.services.clientes import deuda_pendiente_eur
+from app.services.clientes import ClienteConFacturas, convertir_vinculo, deuda_pendiente_eur, eliminar_cliente
+from app.services.identidad import propagar_edicion_cliente, vincular_sanciones_a_cliente
 from app.services.documentos_comerciales import (
     DatosFaltantesError,
     generar_contrato,
@@ -73,7 +75,9 @@ def _historico_resultado_dict(
         "extraido": resultado.extraido, "datos_extraidos": resultado.datos_extraidos,
         "created_at": resultado.created_at,
         "boe_id": doc.boe_id, "fuente": doc.fuente, "fecha_publicacion": doc.fecha_publicacion,
-        "titulo": doc.titulo, "url_pdf": doc.url_pdf, "url_html": doc.url_html, "url_xml": doc.url_xml,
+        "titulo": doc.titulo,
+        "url_pdf": absoluta_url_boe(doc.url_pdf), "url_html": absoluta_url_boe(doc.url_html),
+        "url_xml": doc.url_xml,
         "fuera_de_ventana_teu": doc.fuente == "teu" and fuera_de_ventana_teu(doc.fecha_publicacion, hoy=hoy),
         "titular": titular,
     }
@@ -86,6 +90,19 @@ def _titular_map(cliente: Cliente, vinculos: list[VinculoCliente]) -> dict[int |
     for vinculo in vinculos:
         mapa[vinculo.id] = vinculo.nombre or f"{cliente.nombre_razon_social} ({vinculo.rol})"
     return mapa
+
+
+def _acciones_query(cliente_id: int):
+    """Pending actions first, soonest due first (undated ones last); then the
+    finished ones, newest first."""
+    return (
+        select(AccionAgendada).where(AccionAgendada.cliente_id == cliente_id)
+        .order_by(
+            case((AccionAgendada.estado == "pendiente", 0), else_=1),
+            case((AccionAgendada.estado == "pendiente", AccionAgendada.fecha_programada), else_=None).asc().nulls_last(),
+            AccionAgendada.created_at.desc(),
+        )
+    )
 
 
 async def _serialise_out(db: AsyncSession, cliente: Cliente) -> ClienteOut:
@@ -106,7 +123,7 @@ async def list_clientes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = None,
-    estado_cliente: str | None = Query(None, pattern="^(activo|inactivo)$"),
+    estado_cliente: str | None = Query(None, pattern="^(activo|informado|inactivo)$"),
     sector: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -168,9 +185,7 @@ async def get_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
     actividades_result = await db.execute(
         select(ActividadCliente).where(ActividadCliente.cliente_id == cliente_id).order_by(ActividadCliente.created_at.desc())
     )
-    acciones_result = await db.execute(
-        select(AccionAgendada).where(AccionAgendada.cliente_id == cliente_id).order_by(AccionAgendada.created_at.desc())
-    )
+    acciones_result = await db.execute(_acciones_query(cliente_id))
 
     out = await _serialise_out(db, cliente)
     detail = ClienteDetail.model_validate(out.model_dump())
@@ -185,11 +200,47 @@ async def get_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):
 @router.patch("/{cliente_id}", response_model=ClienteOut)
 async def update_cliente(cliente_id: int, data: ClienteUpdate, db: AsyncSession = Depends(get_db)):
     cliente = await _get_or_404(db, cliente_id)
+    antes = {field: getattr(cliente, field) for field in data.model_fields_set}
     for field in data.model_fields_set:
         setattr(cliente, field, getattr(data, field))
+    cambiados = {field for field, valor in antes.items() if valor != getattr(cliente, field)}
+    if "estado_cliente" in cambiados:
+        db.add(ActividadCliente(
+            cliente_id=cliente.id, tipo="sistema",
+            titulo=f"Estado del cliente: {antes['estado_cliente']} → {cliente.estado_cliente}",
+        ))
+    if cambiados & {"cif_nif", "dni_nie"}:
+        # New or corrected document number: every earlier notice of it is now this client's.
+        await vincular_sanciones_a_cliente(db, cliente)
+    # What is corrected on the ficha is the same person's data on their notices.
+    await propagar_edicion_cliente(db, cliente, cambiados, ahora=datetime.now(timezone.utc))
     await db.commit()
     await db.refresh(cliente)
     return await _serialise_out(db, cliente)
+
+
+@router.delete("/{cliente_id}", response_model=dict)
+async def delete_cliente(cliente_id: int, confirmar: bool = Query(False), db: AsyncSession = Depends(get_db)):
+    """Delete a client (e.g. a prospect converted by mistake or one that only
+    ever received information). Its notices go back to the opportunity panel.
+    Needs ``confirmar=true``; refused (409) when invoices were issued to it —
+    those must be kept, deactivate the client instead."""
+    cliente = await _get_or_404(db, cliente_id)
+    if not confirmar:
+        raise HTTPException(status_code=422, detail="Debe confirmar explícitamente el borrado (confirmar=true).")
+    try:
+        resumen = await eliminar_cliente(db, cliente)
+    except ClienteConFacturas as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede borrar: el cliente tiene {exc.cuantas} factura(s) emitida(s) y deben conservarse. "
+                "Márcalo como «Inactivo» para sacarlo de tu lista de trabajo."
+            ),
+        ) from exc
+    await db.commit()
+    return {"deleted": True, **resumen}
 
 
 @router.get("/{cliente_id}/notas", response_model=list[NotaClienteOut])
@@ -224,9 +275,7 @@ async def list_actividad(cliente_id: int, db: AsyncSession = Depends(get_db)):
 @router.get("/{cliente_id}/acciones", response_model=list[AccionAgendadaOut])
 async def list_acciones(cliente_id: int, db: AsyncSession = Depends(get_db)):
     await _get_or_404(db, cliente_id)
-    result = await db.execute(
-        select(AccionAgendada).where(AccionAgendada.cliente_id == cliente_id).order_by(AccionAgendada.created_at.desc())
-    )
+    result = await db.execute(_acciones_query(cliente_id))
     return [AccionAgendadaOut.model_validate(item) for item in result.scalars().all()]
 
 
@@ -238,7 +287,14 @@ async def add_accion(cliente_id: int, data: AccionAgendadaCreate, db: AsyncSessi
         fecha_programada=data.fecha_programada, notas=data.notas,
     )
     db.add(accion)
-    db.add(ActividadCliente(cliente_id=cliente_id, tipo=data.tipo, titulo=f"Acción agendada: {data.titulo}"))
+    # The activity log only knows llamada/email (a database CHECK): a "tarea"
+    # used to violate it and made scheduling fail with a 500.
+    db.add(ActividadCliente(
+        cliente_id=cliente_id, tipo=data.tipo if data.tipo in ("llamada", "email") else "sistema",
+        titulo=f"Acción agendada: {data.titulo}",
+        detalle=f"Para el {data.fecha_programada.strftime('%d/%m/%Y %H:%M')}" if data.fecha_programada else None,
+        datos={"tipo": data.tipo, "fecha_programada": data.fecha_programada.isoformat() if data.fecha_programada else None},
+    ))
     await db.commit()
     await db.refresh(accion)
     return AccionAgendadaOut.model_validate(accion)
@@ -315,6 +371,27 @@ async def update_vinculo(cliente_id: int, vinculo_id: int, data: VinculoUpdate, 
     return VinculoOut.model_validate(vinculo)
 
 
+@router.post("/{cliente_id}/vinculos/{vinculo_id}/convertir", response_model=dict)
+async def convertir_vinculo_en_cliente(cliente_id: int, vinculo_id: int, db: AsyncSession = Depends(get_db)):
+    """Give a vínculo (administrador, conductor, filial…) its own client
+    ficha — see services/clientes.convertir_vinculo. Idempotent."""
+    cliente_padre = await _get_or_404(db, cliente_id)
+    vinculo = await db.get(VinculoCliente, vinculo_id)
+    if vinculo is None or vinculo.cliente_id != cliente_id:
+        raise HTTPException(status_code=404, detail="Vínculo no encontrado")
+    if not vinculo.nombre and vinculo.cliente_vinculado_id is None:
+        raise HTTPException(status_code=422, detail="El vínculo necesita un nombre para convertirse en cliente.")
+    cliente, created = await convertir_vinculo(db, cliente_padre, vinculo)
+    await db.commit()
+    await db.refresh(cliente)
+    await db.refresh(vinculo)
+    return {
+        "cliente": (await _serialise_out(db, cliente)).model_dump(),
+        "vinculo": VinculoOut.model_validate(vinculo).model_dump(),
+        "created": created,
+    }
+
+
 @router.delete("/{cliente_id}/vinculos/{vinculo_id}", response_model=dict)
 async def delete_vinculo(cliente_id: int, vinculo_id: int, db: AsyncSession = Depends(get_db)):
     await _get_or_404(db, cliente_id)
@@ -365,7 +442,10 @@ async def buscar_historico_cliente(
                 )
                 for r in resultado["resultados"]
             ]
-            return {"resultados": items, "avisos": resultado["avisos"], "cobertura_teu": resultado["cobertura_teu"]}
+            return {
+                "resultados": items, "avisos": resultado["avisos"], "cobertura_teu": resultado["cobertura_teu"],
+                "sanciones_vinculadas": resultado.get("sanciones_vinculadas", 0),
+            }
         finally:
             sync_db.close()
 
@@ -376,6 +456,7 @@ async def buscar_historico_cliente(
         resultados=[HistoricoResultadoOut(**item) for item in payload["resultados"]],
         avisos=payload["avisos"],
         cobertura_teu=CoberturaTeuOut(**payload["cobertura_teu"]),
+        sanciones_vinculadas=payload["sanciones_vinculadas"],
     )
 
 
@@ -472,7 +553,10 @@ async def crear_contrato(cliente_id: int, data: ContratoGenerarRequest, db: Asyn
         sync_db = SyncSessionLocal()
         try:
             cliente_sync = sync_db.get(Cliente, cliente_id)
-            return generar_contrato(sync_db, cliente_sync, precio=data.precio)
+            return generar_contrato(
+                sync_db, cliente_sync, precio=data.precio, servicio=data.servicio,
+                forma_pago=data.forma_pago, fecha_inicio=data.fecha_inicio,
+            )
         finally:
             sync_db.close()
 

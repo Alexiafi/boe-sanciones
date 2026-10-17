@@ -20,7 +20,7 @@ import {
   Select,
   Spinner,
 } from "@/components/ui";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
+import { enlaceExterno, formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 
 const states = ["nueva", "revisada", "contactada", "descartada"] as const;
 
@@ -35,6 +35,13 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [estado, setEstado] = useState("nueva");
+  const [nombre, setNombre] = useState("");
+  const [identificador, setIdentificador] = useState("");
+  const [tipoIdentificador, setTipoIdentificador] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [localidad, setLocalidad] = useState("");
+  const [provincia, setProvincia] = useState("");
+  const [codigoPostal, setCodigoPostal] = useState("");
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [web, setWeb] = useState("");
@@ -57,6 +64,13 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
       setSancion(result);
       setSeguimientos(result.seguimientos || []);
       setEstado(result.estado_oportunidad);
+      setNombre(result.nombre || "");
+      setIdentificador(result.identificador || "");
+      setTipoIdentificador(result.tipo_identificador || "");
+      setDireccion(result.direccion || "");
+      setLocalidad(result.localidad || "");
+      setProvincia(result.provincia || "");
+      setCodigoPostal(result.codigo_postal || "");
       setTelefono(result.telefono || "");
       setEmail(result.email || "");
       setWeb(result.web || "");
@@ -84,6 +98,13 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
     try {
       const result = (await api.sanciones.update(Number(id), {
         estado_oportunidad: estado,
+        nombre: nombre || null,
+        identificador: identificador || null,
+        tipo_identificador: tipoIdentificador || null,
+        direccion: direccion || null,
+        localidad: localidad || null,
+        provincia: provincia || null,
+        codigo_postal: codigoPostal || null,
         telefono: telefono || null,
         email: email || null,
         web: web || null,
@@ -94,7 +115,10 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
         twitter_url: twitterUrl || null,
       })) as unknown as Sancionado;
       setSancion(result);
-      setNotice("Cambios guardados.");
+      setSeguimientos(result.seguimientos || []);
+      setNotice(
+        "Cambios guardados. Lo que has modificado se comparte con el resto de avisos de este mismo DNI/CIF y con su ficha de cliente."
+      );
     } catch (error) {
       setNotice(`No se pudieron guardar los cambios: ${error}`);
     } finally {
@@ -158,9 +182,10 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
         </Link>
         <span className="text-on-surface-variant">/</span>
         <h1 className="truncate text-xl font-bold text-on-surface">
-          {sancion.codigo} · {sancion.nombre || sancion.identificador || "Sin identificar"}
+          {sancion.codigo} · {sancion.nombre_mostrado || sancion.nombre || sancion.identificador || "Sin identificar"}
         </h1>
       </div>
+      <IdentidadBanner sancion={sancion} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <Card>
@@ -196,8 +221,13 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
             <CardHeaderWithChip sancion={sancion} />
             {sancion.contacto_estado === "sin_datos" && (
               <Notice tone="info" className="mb-3">
-                Solo se dispone del identificador fiscal (sin nombre ni ubicación), por lo que la búsqueda
-                automática no es viable. Puedes completar el contacto a mano.
+                No hay nombre ni identificador fiscal suficientes para buscar contacto
+                automáticamente. Completa el CIF/DNI a mano y vuelve a enriquecer.
+              </Notice>
+            )}
+            {intentos[0]?.resultado === "error" && intentos[0].error && (
+              <Notice tone="danger" className="mb-3">
+                {intentos[0].error}
               </Notice>
             )}
             <div className="mt-2 divide-y divide-outline-variant/15">
@@ -214,14 +244,14 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
               <div className="mt-3 space-y-1 text-xs text-on-surface-variant">
                 {sancion.contacto_fuente && (
                   <p>
-                    Fuente: {sancion.contacto_fuente}
+                    Fuente: {etiquetaFuente(sancion.contacto_fuente)}
                     {sancion.contacto_confidence != null && ` · confianza ${(sancion.contacto_confidence * 100).toFixed(0)}%`}
                   </p>
                 )}
-                {sancion.contacto_url && (
+                {enlaceExterno(sancion.contacto_url) && (
                   <p>
                     Origen:{" "}
-                    <a href={sancion.contacto_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    <a href={enlaceExterno(sancion.contacto_url)!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                       {sancion.contacto_url}
                     </a>
                   </p>
@@ -247,11 +277,14 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
                     <span className="font-medium text-on-surface">{intento.resultado}</span>
                     <span className="text-on-surface-variant"> · {intento.proveedor} · {formatDateTime(intento.created_at)}</span>
                     {intento.evidencia && <p className="mt-1 text-on-surface-variant">{intento.evidencia}</p>}
+                    {intento.error && <p className="mt-1 text-error">{intento.error}</p>}
                   </div>
                 ))}
               </div>
             )}
           </Card>
+
+          <HistorialDelTitular sancion={sancion} />
 
           <Card>
             <CardTitle>Seguimiento</CardTitle>
@@ -285,11 +318,47 @@ export default function SancionDetailPage({ params }: { params: Promise<{ id: st
           <Card>
             <CardTitle>Editar oportunidad</CardTitle>
             <form onSubmit={saveOpportunity} className="mt-4 space-y-3">
+              <Field label="Nombre / razón social">
+                <Input value={nombre} onChange={(event) => setNombre(event.target.value)} maxLength={300} />
+              </Field>
+              <Field label="Tipo de identificador">
+                <Select value={tipoIdentificador} onChange={(event) => setTipoIdentificador(event.target.value)}>
+                  <option value="">Sin especificar</option>
+                  <option value="CIF">CIF (empresa)</option>
+                  <option value="NIF">NIF</option>
+                  <option value="DNI">DNI</option>
+                  <option value="NIE">NIE</option>
+                </Select>
+              </Field>
+              <Field label="CIF / DNI">
+                <Input
+                  value={identificador}
+                  onChange={(event) => setIdentificador(event.target.value)}
+                  maxLength={50}
+                  placeholder="B12345678 o 12345678Z"
+                />
+              </Field>
+              <Field label="Dirección">
+                <Input value={direccion} onChange={(event) => setDireccion(event.target.value)} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Localidad">
+                  <Input value={localidad} onChange={(event) => setLocalidad(event.target.value)} maxLength={200} />
+                </Field>
+                <Field label="C. postal">
+                  <Input value={codigoPostal} onChange={(event) => setCodigoPostal(event.target.value)} maxLength={10} />
+                </Field>
+              </div>
+              <Field label="Provincia">
+                <Input value={provincia} onChange={(event) => setProvincia(event.target.value)} maxLength={200} />
+              </Field>
               <Field label="Estado">
                 <Select value={estado} onChange={(event) => setEstado(event.target.value)}>
                   {states.map((value) => (
                     <option key={value}>{value}</option>
                   ))}
+                  {/* Set by converting to a client, never by hand: shown so the form does not silently change it. */}
+                  {sancion.estado_oportunidad === "cliente" && <option value="cliente">cliente (asignado)</option>}
                 </Select>
               </Field>
               <Field label="Teléfono">
@@ -402,12 +471,12 @@ function ContactoRow({ label, valor, dato }: { label: string; valor: string | nu
         ) : (
           valor
         )}
-        {dato?.fuente_url && (
+        {enlaceExterno(dato?.fuente_url) && (
           <a
-            href={dato.fuente_url}
+            href={enlaceExterno(dato?.fuente_url)!}
             target="_blank"
             rel="noopener noreferrer"
-            title={`Fuente: ${dato.fuente_url}`}
+            title={`Fuente: ${dato?.fuente_url}`}
             className="ml-2 text-[10px] font-normal uppercase tracking-[0.05em] text-on-surface-variant hover:text-primary hover:underline"
           >
             fuente
@@ -415,5 +484,98 @@ function ContactoRow({ label, valor, dato }: { label: string; valor: string | nu
         )}
       </span>
     </div>
+  );
+}
+
+const FUENTES: Record<string, string> = {
+  manual: "Introducido a mano",
+  sancionado: "Otro aviso del mismo DNI/CIF",
+  cliente: "Ficha de cliente",
+};
+
+function etiquetaFuente(fuente: string): string {
+  return FUENTES[fuente] ?? fuente;
+}
+
+function IdentidadBanner({ sancion }: { sancion: Sancionado }) {
+  if (!sancion.cliente_id && !sancion.ya_contactado && sancion.otras_notificaciones === 0) return null;
+  return (
+    <div className="mb-6 space-y-2">
+      {sancion.cliente_id && (
+        <Notice tone="success">
+          <span className="font-semibold">Ya es cliente{sancion.cliente_estado === "informado" ? " (solo información)" : ""}:</span>{" "}
+          {sancion.cliente_nombre || sancion.nombre_mostrado}.{" "}
+          <Link href={`/clientes/${sancion.cliente_id}`} className="font-semibold underline">
+            Abrir su ficha →
+          </Link>
+        </Notice>
+      )}
+      {sancion.ya_contactado && (
+        <Notice tone="warning">
+          <span className="font-semibold">Ya se contactó con esta persona</span>
+          {sancion.ultima_gestion ? ` (última gestión ${formatDate(sancion.ultima_gestion)})` : ""} a través de otro aviso del mismo DNI/CIF.
+          Revisa abajo las notas antes de volver a llamar.
+        </Notice>
+      )}
+      {sancion.otras_notificaciones > 0 && !sancion.ya_contactado && (
+        <Notice tone="info">
+          Este DNI/CIF tiene {sancion.otras_notificaciones} aviso{sancion.otras_notificaciones === 1 ? "" : "s"} más (ver «Mismo titular» abajo).
+        </Notice>
+      )}
+    </div>
+  );
+}
+
+function HistorialDelTitular({ sancion }: { sancion: Sancionado }) {
+  const relacionadas = sancion.relacionadas ?? [];
+  const notas = sancion.seguimientos_relacionados ?? [];
+  if (relacionadas.length === 0 && notas.length === 0) return null;
+  return (
+    <Card>
+      <CardTitle>Mismo titular · otros avisos</CardTitle>
+      <p className="mt-1 text-xs text-on-surface-variant">
+        Avisos con el mismo DNI/CIF. Los datos de contacto que añadas aquí o en ellos se comparten entre todos.
+      </p>
+      {relacionadas.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {relacionadas.map((item) => (
+            <div key={item.id} className="rounded-lg bg-surface-container-low p-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/sanciones/${item.id}`} className="font-mono text-xs font-medium text-primary hover:underline">
+                    {item.codigo}
+                  </Link>
+                  <span className="text-xs text-on-surface-variant">{formatDate(item.fecha_publicacion)}</span>
+                  {(item.importe_multa_eur ?? item.importe_deuda_eur) != null && (
+                    <span className="text-xs text-on-surface">{formatCurrency(item.importe_multa_eur ?? item.importe_deuda_eur)}</span>
+                  )}
+                </div>
+                <EstadoChip dominio="estado_oportunidad" valor={item.estado_oportunidad} />
+              </div>
+              {item.organismo_emisor && <p className="mt-1 text-xs text-on-surface-variant">{item.organismo_emisor}</p>}
+              {item.ultima_nota && <p className="mt-1 text-xs text-on-surface">«{item.ultima_nota}»</p>}
+            </div>
+          ))}
+        </div>
+      )}
+      {notas.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.05em] text-on-surface-variant">Notas escritas en esos avisos</p>
+          <div className="space-y-2">
+            {notas.map((nota) => (
+              <div key={nota.id} className="rounded-lg bg-surface-container-low p-3 text-sm">
+                <span className="text-xs text-on-surface-variant">
+                  {formatDateTime(nota.created_at)} ·{" "}
+                  <Link href={`/sanciones/${nota.sancionado_id}`} className="hover:underline">
+                    {nota.codigo}
+                  </Link>
+                </span>
+                <p className="text-on-surface">{nota.nota || "Sin nota"}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }

@@ -6,19 +6,29 @@ so these need no ephemeral PostgreSQL and no network.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from app.config import settings
+from app.services.enrichment.base import SearchProviderError
 from app.services.enrichment.providers import dataforseo as dataforseo_module
 from app.services.enrichment.providers.dataforseo import DataForSEOProvider
 
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self._payload = payload
+        self.status_code = status_code
+        self.reason_phrase = "Forbidden" if status_code == 403 else "OK"
+        self.request = httpx.Request("POST", dataforseo_module.DATAFORSEO_URL)
 
     def raise_for_status(self):
-        pass
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError(
+                f"Client error {self.status_code}",
+                request=self.request,
+                response=self,
+            )
 
     def json(self):
         return self._payload
@@ -35,12 +45,13 @@ class _FakeClient:
         return False
 
     def post(self, url, json=None):
-        return _FakeResponse(_FakeClient.payload)
+        return _FakeResponse(_FakeClient.payload, getattr(_FakeClient, "status_code", 200))
 
 
 def _configure(monkeypatch):
     monkeypatch.setattr(settings, "dataforseo_login", "test-login")
     monkeypatch.setattr(settings, "dataforseo_password", "test-password")
+    _FakeClient.status_code = 200
 
 
 def test_parses_organic_results_and_skips_paid_entries(monkeypatch):
@@ -83,3 +94,35 @@ def test_missing_credentials_never_constructs_http_client(monkeypatch):
     monkeypatch.setattr(dataforseo_module.httpx, "Client", _boom)
 
     assert DataForSEOProvider().buscar("consulta cualquiera", 10) == []
+
+
+def test_unverified_account_403_raises_search_provider_error(monkeypatch):
+    _configure(monkeypatch)
+    _FakeClient.status_code = 403
+    _FakeClient.payload = {
+        "status_code": 40104,
+        "status_message": (
+            "Please verify your account before using the API. "
+            "You can complete verification in the user panel: https://app.dataforseo.com/ ."
+        ),
+        "tasks": None,
+    }
+    monkeypatch.setattr(dataforseo_module.httpx, "Client", _FakeClient)
+
+    with pytest.raises(SearchProviderError, match="verificar la cuenta"):
+        DataForSEOProvider().buscar("CIF B02631414", 10)
+
+    _FakeClient.status_code = 200
+
+
+def test_timeout_raises_search_provider_error(monkeypatch):
+    _configure(monkeypatch)
+
+    class _TimeoutClient(_FakeClient):
+        def post(self, url, json=None):
+            raise httpx.ReadTimeout("The read operation timed out")
+
+    monkeypatch.setattr(dataforseo_module.httpx, "Client", _TimeoutClient)
+
+    with pytest.raises(SearchProviderError, match="no contestó a tiempo"):
+        DataForSEOProvider().buscar("Gesconsult, SA, SGIIC", 10)

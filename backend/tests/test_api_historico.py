@@ -93,6 +93,7 @@ def test_consulta_es_solo_lectura(clean_database):
         session.add(HistoricoDoc(
             boe_id="BOE-API-HIST-1", fuente="boe", fecha_publicacion=date(2026, 1, 1), titulo="Doc",
             identificadores=["B12345674"], nombres_norm="ACME LOGISTICA SL",
+            url_html="/diario_boe/txt.php?id=BOE-API-HIST-1",
         ))
         session.commit()
     finally:
@@ -104,6 +105,7 @@ def test_consulta_es_solo_lectura(clean_database):
     body = resp.json()
     assert len(body["resultados"]) == 1
     assert body["resultados"][0]["via_match"] == "cif"
+    assert body["resultados"][0]["url_html"] == "https://www.boe.es/diario_boe/txt.php?id=BOE-API-HIST-1"
     assert body["avisos"]
     assert body["cobertura_teu"]["consulta_en_vivo"] is False  # off by default
 
@@ -132,6 +134,7 @@ def test_list_historico_paginado(clean_database):
     try:
         session.add(HistoricoDoc(
             boe_id="BOE-API-HIST-3", fuente="boe", fecha_publicacion=date(2026, 3, 1), titulo="Doc listado",
+            url_pdf="/boe_n/dias/2026/03/01/not.php?id=BOE-API-HIST-3",
         ))
         session.commit()
     finally:
@@ -143,6 +146,8 @@ def test_list_historico_paginado(clean_database):
     body = resp.json()
     assert body["total"] >= 1
     assert all(item["fuente"] == "boe" for item in body["items"])
+    listed = next(item for item in body["items"] if item["boe_id"] == "BOE-API-HIST-3")
+    assert listed["url_pdf"] == "https://www.boe.es/boe_n/dias/2026/03/01/not.php?id=BOE-API-HIST-3"
 
 
 @pytest.mark.integration

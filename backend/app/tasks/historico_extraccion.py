@@ -26,7 +26,9 @@ from app.models.cliente import ActividadCliente
 from app.models.historico import HistoricoDoc, HistoricoResultado
 from app.models.scraping_run import ScrapingRun
 from app.services.boe_client import fetch_document_content, fetch_document_pdf
+from app.services.configuracion import ConfiguracionRuntime, extraccion_disponible, leer_configuracion
 from app.services.extractor import ResultadoExtraccion, extract_sanctions
+from app.services.openai_batch import BatchTransport, PeticionBatch, enviar_batch, get_transport
 from app.services.parser import RawDocument, extract_text_from_document
 from app.services.archivo import guardar_archivo
 from app.tasks.scraping import PaidExtractionNotAllowed
@@ -38,6 +40,8 @@ logger = logging.getLogger(__name__)
 class ExtraccionHistoricaDependencies:
     extractor: Callable[[str, str], ResultadoExtraccion] = extract_sanctions
     fetch_text: Callable[[HistoricoDoc], tuple[str, str, RawDocument | None]] | None = None
+    batch_transport: Callable[[], BatchTransport] = get_transport
+    leer_configuracion: Callable[[Any], ConfiguracionRuntime] = leer_configuracion
 
 
 def _fetch_text_default(doc: HistoricoDoc) -> tuple[str, str, RawDocument | None]:
@@ -53,21 +57,31 @@ def extraer_historico(
     permitir_extraccion_pago: bool = False,
     force: bool = False,
     dependencies: ExtraccionHistoricaDependencies | None = None,
+    modo: str | None = None,
 ) -> dict[str, Any]:
-    if permitir_extraccion_pago and (not settings.openai_extraction_enabled or not settings.openai_api_key):
+    """``modo`` is ``tiempo_real`` or ``batch``; ``None`` follows the runtime
+    configuration (``historico_extraccion_modo``). In batch mode the selected
+    documents are submitted as one Batch API job and the results land later
+    via ``tasks/extraccion_batch.py`` — the returned dict then carries
+    ``batch_id`` and ``en_batch`` instead of ``extraidos``."""
+    if permitir_extraccion_pago and not extraccion_disponible()[0]:
         raise PaidExtractionNotAllowed("La extracción OpenAI requiere configuración habilitada y una API key.")
-    allow = permitir_extraccion_pago and settings.openai_extraction_enabled and bool(settings.openai_api_key)
+    allow = permitir_extraccion_pago and extraccion_disponible()[0]
     deps = dependencies or ExtraccionHistoricaDependencies()
     limite = (
         min(len(resultado_ids), settings.historico_extraccion_max_docs_por_peticion) if allow else 0
     )
 
     db = SyncSessionLocal()
+    if modo is None:
+        modo = deps.leer_configuracion(db).historico_extraccion_modo
+    if modo not in ("tiempo_real", "batch"):
+        modo = "tiempo_real"
     run = ScrapingRun(
         tipo="historico_cliente", fecha_boe=date.today(), status="running",
         started_at=datetime.now(timezone.utc), extraction_requested=allow,
-        extraction_provider="openai" if allow else "disabled", extraction_limit=limite,
-        extraction_attempts=0,
+        extraction_provider=("openai_batch" if modo == "batch" else "openai") if allow else "disabled",
+        extraction_limit=limite, extraction_attempts=0,
     )
     db.add(run)
     db.commit()
@@ -75,6 +89,7 @@ def extraer_historico(
     extraidos = 0
     errores = 0
     procesados: list[int] = []
+    peticiones: list[PeticionBatch] = []
     try:
         for resultado_id in resultado_ids:
             if not allow or run.extraction_attempts >= limite:
@@ -97,6 +112,15 @@ def extraer_historico(
                         db, boe_id=doc.boe_id, content_type=raw[0],
                         contenido=raw[1], url_origen=raw[2],
                     )
+            if modo == "batch":
+                resultado.extraccion_error = None
+                peticiones.append(PeticionBatch(
+                    custom_id=f"hist-{resultado.id}", texto=texto or "", titulo=doc.titulo,
+                    historico_resultado_id=resultado.id,
+                ))
+                procesados.append(resultado_id)
+                db.commit()
+                continue
             try:
                 extraido: ResultadoExtraccion = deps.extractor(texto or "", doc.titulo)
                 resultado.datos_extraidos = extraido.model_dump(mode="json")
@@ -117,6 +141,29 @@ def extraer_historico(
                 logger.exception("Extracción histórica fallida para resultado %s", resultado_id)
             db.commit()
 
+        batch_id: int | None = None
+        if peticiones:
+            try:
+                batch = enviar_batch(
+                    db, tipo="historico_cliente", peticiones=peticiones, transport=deps.batch_transport(),
+                    scraping_run_id=run.id,
+                )
+                batch_id = batch.id
+                db.commit()
+            except Exception as exc:
+                logger.exception("No se pudo enviar el batch histórico del run %s", run.id)
+                try:
+                    db.commit()  # keep the ``fallido`` batch row for diagnosis
+                except Exception:
+                    db.rollback()
+                for peticion in peticiones:
+                    resultado = db.get(HistoricoResultado, peticion.historico_resultado_id)
+                    if resultado is not None:
+                        resultado.extraccion_error = f"Envío a OpenAI Batch fallido: {exc}"[:2_000]
+                errores += len(peticiones)
+                procesados = []
+                db.commit()
+
         run.status = "completed"
         run.extracted = extraidos
         run.errors = errores
@@ -128,6 +175,8 @@ def extraer_historico(
         resumen = {
             "run_id": run.id, "extraidos": extraidos, "errores": errores,
             "procesados": procesados, "openai_calls": run.extraction_attempts,
+            "modo": modo if allow else "sin_extraccion",
+            "batch_id": batch_id, "en_batch": len(peticiones) if batch_id else 0,
         }
     except Exception:
         db.rollback()
@@ -140,6 +189,6 @@ def extraer_historico(
 
 @celery.task(name="app.tasks.historico_extraccion.extraer_historico_task")
 def extraer_historico_task(
-    resultado_ids: list[int], permitir_extraccion_pago: bool = False, force: bool = False
+    resultado_ids: list[int], permitir_extraccion_pago: bool = False, force: bool = False, modo: str | None = None,
 ) -> dict:
-    return extraer_historico(resultado_ids, permitir_extraccion_pago=permitir_extraccion_pago, force=force)
+    return extraer_historico(resultado_ids, permitir_extraccion_pago=permitir_extraccion_pago, force=force, modo=modo)

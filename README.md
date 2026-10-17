@@ -50,12 +50,12 @@ realizar ingesta real del BOE en las horas programadas.
 
 ## Funcionalidades
 
-- **Scraping automatico**: extrae el sumario diario del BOE via API oficial cada 12 horas
+- **Scraping automatico**: extrae el sumario diario del BOE (y el TEU) via API oficial cada hora entre las 07:30 y las 21:30, al arrancar el software y con un repaso de la última semana tres veces al día; idempotente por fecha
 - **Clasificacion por reglas**: filtra documentos sancionadores usando patrones STRONG/MEDIUM
 - **Oportunidades operativas**: cada afectado persistido recibe un código único `OP-YYYY-NNNNNN`, estado y campos estructurados disponibles.
-- **Extracción con IA bajo control de coste**: está desactivada por defecto. Requiere `OPENAI_EXTRACTION_ENABLED=true`, API key y confirmación explícita en el trigger manual; el límite inicial es un documento por ejecución.
+- **Extracción con IA bajo control de coste**: desactivada por defecto en `.env` (`OPENAI_EXTRACTION_ENABLED=true` + API key para activarla). Con la puerta abierta, desde la pantalla "Configuración" se decide si las ejecuciones diarias extraen solas, si usan llamadas en tiempo real o la Batch API de OpenAI (≈50 % más barata, resultados en horas) y el tope de documentos por ejecución. Los lanzamientos manuales siguen exigiendo confirmación explícita.
 - **Enriquecimiento de contacto bajo demanda** (sesión 2): busca teléfono/email en la web corporativa pública de la persona/empresa sancionada, verificando por evidencia (CIF o razón social encontrados en la página) antes de guardar nada. Desactivado por defecto; ver sección dedicada más abajo.
-- **Clientes/CRM** (sesión 2): conversión idempotente de una oportunidad en cliente, ficha con notas, registro de actividad y acciones agendadas.
+- **Clientes/CRM** (sesión 2): conversión idempotente de una oportunidad en cliente, ficha con notas, registro de actividad y acciones agendadas. Un vínculo (administrador, filial…) se puede convertir a su vez en cliente con ficha propia, manteniendo la relación en ambos sentidos.
 - **Seguimiento**: la abogada puede marcar estado de cada sancionado (pendiente, contactado, en gestion, descartado, resuelto)
 - **Notificaciones**: alertas in-app y email digest cuando se detectan nuevas sanciones
 - **Scraping manual**: ejecutar extraccion para una fecha concreta desde la UI

@@ -47,9 +47,8 @@ def has_substantive_data(data: Any) -> bool:
     )
 
 
-def allocate_codigo(session, publication_year: int) -> str:
-    """Allocate the next annual OP code atomically in PostgreSQL."""
-    stmt = (
+def _codigo_stmt(publication_year: int):
+    return (
         insert(CodigoOportunidadContador)
         .values(anio=publication_year, ultimo_valor=1)
         .on_conflict_do_update(
@@ -58,7 +57,17 @@ def allocate_codigo(session, publication_year: int) -> str:
         )
         .returning(CodigoOportunidadContador.ultimo_valor)
     )
-    sequence = session.execute(stmt).scalar_one()
+
+
+def allocate_codigo(session, publication_year: int) -> str:
+    """Allocate the next annual OP code atomically in PostgreSQL."""
+    sequence = session.execute(_codigo_stmt(publication_year)).scalar_one()
+    return f"OP-{publication_year}-{sequence:06d}"
+
+
+async def allocate_codigo_async(db, publication_year: int) -> str:
+    """Async counterpart of ``allocate_codigo`` for API routers."""
+    sequence = (await db.execute(_codigo_stmt(publication_year))).scalar_one()
     return f"OP-{publication_year}-{sequence:06d}"
 
 
@@ -73,6 +82,30 @@ def _as_date(value: Any) -> date | None:
         return None
 
 
+def _column_limits() -> dict[str, int]:
+    limits: dict[str, int] = {}
+    for column in Sancionado.__table__.columns:
+        length = getattr(column.type, "length", None)
+        if length:
+            limits[column.name] = int(length)
+    return limits
+
+
+_LIMITES = _column_limits()
+
+
+def _fit(key: str, value: Any) -> Any:
+    """Truncate a free-text value to its column width. The model has no
+    notion of our schema and occasionally returns a long ``plazo_*`` or
+    ``expediente`` sentence; a StringDataRightTruncation on flush would
+    otherwise abort the whole document (and poison the session for the rest
+    of the run) over one over-long field."""
+    limit = _LIMITES.get(key)
+    if limit and isinstance(value, str) and len(value) > limit:
+        return value[:limit]
+    return value
+
+
 def extracted_values(data: Any) -> dict[str, Any]:
     """Map structured extractor data to persisted opportunity fields."""
     values = {
@@ -84,8 +117,6 @@ def extracted_values(data: Any) -> dict[str, Any]:
         "localidad": data.localidad,
         "provincia": data.provincia,
         "codigo_postal": data.codigo_postal,
-        "telefono": data.telefono,
-        "email": data.email,
         "matricula_coche": data.matricula_coche,
         "importe_multa_eur": data.importe_multa_eur,
         "tipo_infraccion": data.tipo_infraccion,
@@ -104,7 +135,13 @@ def extracted_values(data: Any) -> dict[str, Any]:
         "fecha_resolucion": _as_date(data.fecha_resolucion),
         "observaciones": data.observaciones,
     }
-    return {key: value for key, value in values.items() if value not in (None, "")}
+    # ``telefono``/``email`` are deliberately NOT mapped. A notice is written by
+    # an administration, and on a real database every phone the extraction had
+    # copied (1,481 of them) was the issuing office's — repeated across
+    # hundreds of different people, or "Ayuntamiento de Reinosa 942 751 245" on
+    # a single one. Contact for a sanctioned party comes from the web
+    # enrichment, from a person, or from the same party's other records.
+    return {key: _fit(key, value) for key, value in values.items() if value not in (None, "")}
 
 
 def upsert_afectado(session, boe_doc, data: Any) -> tuple[Sancionado | None, bool]:

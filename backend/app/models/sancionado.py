@@ -1,11 +1,12 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, event, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.services.historico.patterns import clave_identidad
 
 
 class Sancionado(Base):
@@ -20,6 +21,9 @@ class Sancionado(Base):
     nombre: Mapped[Optional[str]] = mapped_column(String(500), index=True)
     tipo_persona: Mapped[Optional[str]] = mapped_column(String(20))
     identificador: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    # Normalised COMPLETE DNI/NIE/CIF (NULL when masked or malformed): rows with
+    # the same key are the same person/company — see services/identidad.py.
+    identidad_clave: Mapped[Optional[str]] = mapped_column(String(20), index=True)
     tipo_identificador: Mapped[Optional[str]] = mapped_column(String(20))
     direccion: Mapped[Optional[str]] = mapped_column(Text)
     localidad: Mapped[Optional[str]] = mapped_column(String(200))
@@ -96,3 +100,11 @@ class Sancionado(Base):
     notificaciones: Mapped[list["Notificacion"]] = relationship(  # noqa: F821
         back_populates="sancionado", cascade="all, delete-orphan"
     )
+
+
+@event.listens_for(Sancionado, "before_insert")
+@event.listens_for(Sancionado, "before_update")
+def _fijar_identidad_clave(_mapper, _connection, target: Sancionado) -> None:
+    """Keep ``identidad_clave`` in step with ``identificador`` on every write
+    path (pipeline, manual alta, PATCH, tests) instead of trusting callers."""
+    target.identidad_clave = clave_identidad(target.identificador)

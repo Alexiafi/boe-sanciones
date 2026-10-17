@@ -13,6 +13,14 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
+class SearchProviderError(RuntimeError):
+    """A configured search provider rejected the request (auth, quota, etc.).
+
+    Distinct from "zero organic results": callers must record ``estado=error``,
+    never ``no_encontrado``, and must not cache the empty miss.
+    """
+
+
 @dataclass(frozen=True)
 class SearchCandidate:
     url: str

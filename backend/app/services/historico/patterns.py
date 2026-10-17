@@ -111,6 +111,21 @@ def normalizar_identificador(value: str | None) -> str:
     return re.sub(r"[\s.\-]", "", value).upper()
 
 
+# A COMPLETE document number (DNI / NIE / CIF shape). Masked identifiers
+# ("***4567**") and free text never qualify, so two different people can
+# never be merged by sharing the four visible digits.
+FORMATO_ID_COMPLETO = re.compile(
+    r"^(?:\d{8}[A-Z]|[XYZ]\d{7}[A-Z]|[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J])$"
+)
+
+
+def clave_identidad(value: str | None) -> str | None:
+    """Normalised key that identifies one person/company across notices, or
+    ``None`` when the identifier is masked, partial or not a document number."""
+    normalizado = normalizar_identificador(value)
+    return normalizado if normalizado and FORMATO_ID_COMPLETO.match(normalizado) else None
+
+
 def normalizar_matricula(value: str | None) -> str:
     if not value:
         return ""

@@ -1,0 +1,33 @@
+BOE SANCIONES — ACTUALIZACIÓN
+=============================
+
+Esta carpeta es el paquete completo de la nueva versión. Trae el .env ya preparado.
+
+CÓMO ACTUALIZAR (unos 10 minutos)
+  1. Docker Desktop abierto.
+  2. Abrir Terminal, entrar en esta carpeta y ejecutar:
+
+        cd ~/Downloads/<esta carpeta>
+        bash actualizar.sh
+
+  El script encuentra solo la instalación actual, hace una copia de seguridad de la base de datos (en
+  ~/boe-sanciones-copias), pone el código nuevo y el .env, reconstruye, aplica las migraciones y comprueba que no
+  se ha perdido ningún cliente ni contrato/factura. Pregunta una sola vez antes de tocar nada.
+
+  Si no hay instalación previa, instala desde cero en esta misma carpeta.
+
+QUÉ NO SE TOCA
+  - La base de datos (clientes, sanciones, notas, facturas).
+  - Los contratos y facturas ya generados (backend/data).
+
+SI ALGO SALE MAL
+  - Todo queda registrado en ~/boe-sanciones-copias/actualizacion-<fecha>.log
+  - Para volver a la versión anterior:   bash volver_atras.sh
+
+NO HACER
+  - No usar nunca "docker compose down -v" (el -v borra la base de datos).
+  - No copiar esta carpeta encima de la instalación antigua a mano: el .env y las credenciales de la base de
+    datos se gestionan en el script.
+
+DOCUMENTACIÓN
+  docs/GUIA_OPERATIVA.md

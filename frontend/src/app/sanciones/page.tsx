@@ -3,16 +3,18 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarRange, FileCheck2, ShieldAlert } from "lucide-react";
+import { CalendarRange, FileCheck2, Plus, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import type { PaginatedResponse, Sancionado } from "@/lib/types";
 import {
   Card,
+  Chip,
   EmptyState,
   ErrorState,
   EstadoChip,
   Field,
   Input,
+  LinkButton,
   PageHeader,
   Pagination,
   Select,
@@ -51,6 +53,9 @@ function SancionesPageContent() {
   const [persona, setPersona] = useState(() => searchParams.get("persona") ?? "");
   const [contacto, setContacto] = useState(() => searchParams.get("contacto") ?? "");
   const [contactoEstado, setContactoEstado] = useState(() => searchParams.get("contacto_estado") ?? "");
+  const [telefono, setTelefono] = useState(() => searchParams.get("telefono") ?? "");
+  const [esCliente, setEsCliente] = useState(() => searchParams.get("cliente") ?? "");
+  const [gestionPrevia, setGestionPrevia] = useState(() => searchParams.get("gestion") ?? "");
   const [cuantiaMin, setCuantiaMin] = useState(() => searchParams.get("cuantia_min") ?? "");
   const [cuantiaMax, setCuantiaMax] = useState(() => searchParams.get("cuantia_max") ?? "");
   const [fechaDesde, setFechaDesde] = useState(() => searchParams.get("fecha_desde") ?? defaultFechaDesde);
@@ -60,10 +65,18 @@ function SancionesPageContent() {
     setLoading(true);
     setError(false);
     try {
-      const params: Record<string, string> = {
-        page: String(page), page_size: "20", fecha_desde: fechaDesde, fecha_hasta: fechaHasta,
-      };
+      // Looking somebody up (a DNI/CIF, a name) searches everything stored, not
+      // just the default 30-day window — unless the user chose dates herself.
+      const fechasElegidas = fechaDesde !== defaultFechaDesde || fechaHasta !== defaultFechaHasta;
+      const params: Record<string, string> = { page: String(page), page_size: "20" };
+      if (!search.trim() || fechasElegidas) {
+        params.fecha_desde = fechaDesde;
+        params.fecha_hasta = fechaHasta;
+      }
       if (search) params.search = search;
+      if (telefono) params.solo_con_telefono = telefono;
+      if (esCliente) params.es_cliente = esCliente;
+      if (gestionPrevia) params.gestion_previa = gestionPrevia;
       if (estado) params.estado_oportunidad = estado;
       if (materia) params.materia = materia;
       if (persona) params.tipo_persona = persona;
@@ -83,6 +96,9 @@ function SancionesPageContent() {
       if (persona) query.set("persona", persona);
       if (contacto) query.set("contacto", contacto);
       if (contactoEstado) query.set("contacto_estado", contactoEstado);
+      if (telefono) query.set("telefono", telefono);
+      if (esCliente) query.set("cliente", esCliente);
+      if (gestionPrevia) query.set("gestion", gestionPrevia);
       if (cuantiaMin) query.set("cuantia_min", cuantiaMin);
       if (cuantiaMax) query.set("cuantia_max", cuantiaMax);
       if (fechaDesde !== defaultFechaDesde) query.set("fecha_desde", fechaDesde);
@@ -97,7 +113,7 @@ function SancionesPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, estado, materia, persona, contacto, contactoEstado, cuantiaMin, cuantiaMax, fechaDesde, fechaHasta, defaultFechaDesde, defaultFechaHasta, router]);
+  }, [page, search, estado, materia, persona, contacto, contactoEstado, telefono, esCliente, gestionPrevia, cuantiaMin, cuantiaMax, fechaDesde, fechaHasta, defaultFechaDesde, defaultFechaHasta, router]);
 
   useEffect(() => {
     fetchData();
@@ -109,7 +125,16 @@ function SancionesPageContent() {
     <div>
       <PageHeader
         title="Panel de Multas"
-        description="Publicaciones BOE de los últimos 30 días. Consultar esta lista no inicia scraping."
+        description={
+          search.trim() && fechaDesde === defaultFechaDesde && fechaHasta === defaultFechaHasta
+            ? "Buscando en todo lo guardado, sin límite de fechas."
+            : "Publicaciones BOE de los últimos 30 días. Consultar esta lista no inicia scraping."
+        }
+        actions={
+          <LinkButton href="/sanciones/nueva" variant="primary">
+            <Plus className="h-4 w-4" /> Nueva multa
+          </LinkButton>
+        }
       />
 
       {data && (
@@ -124,7 +149,7 @@ function SancionesPageContent() {
           </div>
           <div className="flex items-center gap-4 rounded-2xl border border-outline-variant/55 bg-white p-5 shadow-ambient">
             <span className="grid h-11 w-11 place-items-center rounded-xl bg-success-container text-success"><CalendarRange className="h-5 w-5" /></span>
-            <div><p className="text-[9px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">Ventana activa</p><p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-primary">30 días</p></div>
+            <div><p className="text-[9px] font-bold uppercase tracking-[0.13em] text-on-surface-variant">Ventana activa</p><p className="mt-1 text-2xl font-extrabold tracking-[-0.04em] text-primary">{search.trim() && fechaDesde === defaultFechaDesde && fechaHasta === defaultFechaHasta ? "Todo" : "30 días"}</p></div>
           </div>
         </div>
       )}
@@ -184,6 +209,27 @@ function SancionesPageContent() {
               <option value="false">Sin contacto</option>
             </Select>
           </Field>
+          <Field label="Teléfono">
+            <Select value={telefono} onChange={(event) => { setTelefono(event.target.value); resetPage(); }}>
+              <option value="">Con o sin teléfono</option>
+              <option value="true">Solo con teléfono</option>
+              <option value="false">Sin teléfono</option>
+            </Select>
+          </Field>
+          <Field label="Cliente">
+            <Select value={esCliente} onChange={(event) => { setEsCliente(event.target.value); resetPage(); }}>
+              <option value="">Clientes y no clientes</option>
+              <option value="true">Ya son clientes</option>
+              <option value="false">Aún no son clientes</option>
+            </Select>
+          </Field>
+          <Field label="Gestión previa" hint="Otro aviso del mismo DNI/CIF ya se marcó como contactado.">
+            <Select value={gestionPrevia} onChange={(event) => { setGestionPrevia(event.target.value); resetPage(); }}>
+              <option value="">Todos</option>
+              <option value="false">Sin contactar antes</option>
+              <option value="true">Ya contactados antes</option>
+            </Select>
+          </Field>
           <Field label="Estado de contacto">
             <Select value={contactoEstado} onChange={(event) => { setContactoEstado(event.target.value); resetPage(); }}>
               <option value="">Cualquiera</option>
@@ -236,7 +282,31 @@ function SancionesPageContent() {
                     return (
                       <tr key={item.id} className="hover:bg-surface-container-low">
                         <td className="px-4 py-2.5 font-mono text-xs text-on-surface-variant">{item.codigo}</td>
-                        <td className="max-w-[180px] truncate px-4 py-2.5 font-medium text-on-surface">{item.nombre || "—"}</td>
+                        <td className="max-w-[240px] px-4 py-2.5 font-medium text-on-surface">
+                          <span className="block truncate" title={item.nombre_mostrado ?? undefined}>
+                            {item.nombre_mostrado || "—"}
+                          </span>
+                          <span className="mt-1 flex flex-wrap gap-1">
+                            {item.cliente_id && (
+                              <Link href={`/clientes/${item.cliente_id}`} title="Ya es cliente: abrir su ficha">
+                                <Chip
+                                  label={item.cliente_estado === "informado" ? "Cliente · solo info" : "Ya es cliente"}
+                                  tone={item.cliente_estado === "informado" ? "warning" : "success"}
+                                />
+                              </Link>
+                            )}
+                            {item.ya_contactado && (
+                              <Chip
+                                label={`Contactado antes${item.ultima_gestion ? ` · ${formatDate(item.ultima_gestion)}` : ""}`}
+                                tone="warning"
+                                className="normal-case"
+                              />
+                            )}
+                            {item.otras_notificaciones > 0 && (
+                              <Chip label={`+${item.otras_notificaciones} avisos`} tone="neutral" className="normal-case" />
+                            )}
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 text-on-surface-variant">{item.identificador || "—"}</td>
                         <td className="px-4 py-2.5 text-on-surface">{item.dominio_material || "—"}</td>
                         <td className="px-4 py-2.5 text-on-surface">{formatCurrency(amount)}</td>
@@ -253,13 +323,26 @@ function SancionesPageContent() {
                         </td>
                         <td className="px-4 py-2.5 text-on-surface-variant">{formatDate(item.fecha_publicacion)}</td>
                         <td className="px-4 py-2.5">
-                          {item.url_documento ? (
-                            <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                              Ver BOE
-                            </a>
-                          ) : (
-                            "—"
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {item.url_documento ? (
+                              <a href={item.url_documento} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                                Ver BOE
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                            {item.tiene_copia_local && (
+                              <a
+                                href={api.documentos.archivoUrl(item.boe_document_id)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Copia guardada localmente; disponible aunque el BOE haya retirado el original"
+                                className="text-xs font-semibold text-primary hover:underline"
+                              >
+                                Copia local
+                              </a>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <Link href={`/sanciones/${item.id}`} className="text-xs font-medium text-primary hover:underline">

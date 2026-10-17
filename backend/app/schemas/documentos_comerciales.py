@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +32,9 @@ class DocumentoComercialOut(BaseModel):
 
 class ContratoGenerarRequest(BaseModel):
     precio: float = Field(gt=0)
+    servicio: str = Field(min_length=1)
+    forma_pago: str = Field(min_length=1)
+    fecha_inicio: date | None = None
 
 
 class FacturaGenerarRequest(BaseModel):

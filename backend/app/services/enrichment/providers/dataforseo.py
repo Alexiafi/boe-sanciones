@@ -22,11 +22,40 @@ import logging
 import httpx
 
 from app.config import settings
-from app.services.enrichment.base import SearchCandidate
+from app.services.enrichment.base import SearchCandidate, SearchProviderError
 
 logger = logging.getLogger(__name__)
 
 DATAFORSEO_URL = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+# Live SERP is a Google round-trip; 10s (the page-fetch timeout) routinely
+# cuts the request off and used to be swallowed as "no encontrado".
+DATAFORSEO_TIMEOUT = 45.0
+
+
+def _error_message(exc: httpx.HTTPStatusError) -> str:
+    payload: dict = {}
+    try:
+        payload = exc.response.json() or {}
+    except Exception:
+        payload = {}
+    api_message = (payload.get("status_message") or "").strip()
+    api_code = payload.get("status_code")
+    if api_code == 40104 or "verify your account" in api_message.lower():
+        suffix = f" {api_message}" if api_message else ""
+        return (
+            "DataForSEO exige verificar la cuenta antes de usar la API SERP. "
+            "Entra en https://app.dataforseo.com/ y completa la verificación."
+            + suffix
+        )
+    if exc.response.status_code in (401, 403):
+        suffix = f" {api_message}" if api_message else ""
+        return (
+            f"DataForSEO rechazó la petición (HTTP {exc.response.status_code}). "
+            "Revisa el API login/password en https://app.dataforseo.com/api-access "
+            "(no uses la contraseña del panel)."
+            + suffix
+        )
+    return f"DataForSEO HTTP {exc.response.status_code}: {api_message or exc.response.reason_phrase}"
 
 
 class DataForSEOProvider:
@@ -40,7 +69,7 @@ class DataForSEOProvider:
             return []
         try:
             with httpx.Client(
-                timeout=settings.enrichment_http_timeout,
+                timeout=DATAFORSEO_TIMEOUT,
                 auth=(settings.dataforseo_login, settings.dataforseo_password),
             ) as client:
                 response = client.post(
@@ -55,9 +84,18 @@ class DataForSEOProvider:
                 )
                 response.raise_for_status()
                 data = response.json()
-        except Exception:
+        except httpx.TimeoutException as exc:
+            logger.exception("DataForSEO search timed out for query %r", query)
+            raise SearchProviderError(
+                "DataForSEO no contestó a tiempo. La búsqueda en Google suele tardar "
+                "varios segundos; reintenta el enriquecimiento."
+            ) from exc
+        except httpx.HTTPStatusError as exc:
             logger.exception("DataForSEO search failed for query %r", query)
-            return []
+            raise SearchProviderError(_error_message(exc)) from exc
+        except Exception as exc:
+            logger.exception("DataForSEO search failed for query %r", query)
+            raise SearchProviderError(f"DataForSEO falló: {type(exc).__name__}") from exc
 
         tasks = data.get("tasks") or []
         if not tasks or tasks[0].get("status_code") != 20000:

@@ -56,6 +56,7 @@ def _configurar_emisor(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "emisor_nombre", "Despacho Judit SL")
     monkeypatch.setattr(settings, "emisor_cif", "B99999999")
     monkeypatch.setattr(settings, "emisor_direccion", "Gran Vía 1, Madrid")
+    monkeypatch.setattr(settings, "emisor_iban", "ES9121000418450200051332")
     monkeypatch.setattr(settings, "emisor_iva_porcentaje", 21.0)
     monkeypatch.setattr(settings, "factura_serie", "FAC")
     monkeypatch.setattr(settings, "documentos_dir", str(tmp_path))
@@ -69,6 +70,7 @@ def test_validar_devuelve_campos_exactos_faltantes(monkeypatch, tmp_path, clean_
         monkeypatch.setattr(settings, "emisor_nombre", "")
         monkeypatch.setattr(settings, "emisor_cif", "")
         monkeypatch.setattr(settings, "emisor_direccion", "")
+        monkeypatch.setattr(settings, "emisor_iban", "")
         monkeypatch.setattr(settings, "factura_serie", "")
         cliente = _cliente(session, "1", direccion_fiscal=None)
         session.commit()
@@ -79,6 +81,7 @@ def test_validar_devuelve_campos_exactos_faltantes(monkeypatch, tmp_path, clean_
         assert "EMISOR_CIF" in campos
         assert "EMISOR_DIRECCION" in campos
         assert "FACTURA_SERIE" in campos
+        assert "EMISOR_IBAN" in campos
         assert "cliente.direccion_fiscal" in campos
         assert "cuantia" in campos
         assert "concepto" in campos
@@ -94,10 +97,12 @@ def test_generar_contrato_produce_pdf_real_con_cif_y_precio(monkeypatch, tmp_pat
         cliente = _cliente(session, "2")
         session.commit()
 
-        documento = generar_contrato(session, cliente, precio=1500.0)
+        documento = generar_contrato(
+            session, cliente, precio=1500.0, servicio="Alerta Tráfico – Empresas", forma_pago="Transferencia bancaria"
+        )
         assert documento.tipo == "contrato"
         assert documento.datos["precio"] == 1500.0
-        assert documento.datos["plantilla_provisional"] is True  # seeded template, not yet overridden
+        assert documento.datos["plantilla_provisional"] is False  # migration 0012 replaced the provisional seed
 
         with open(documento.pdf_path, "rb") as fh:
             contenido = fh.read()
@@ -141,6 +146,7 @@ def test_generar_factura_numera_correlativamente_y_calcula_iva(monkeypatch, tmp_
         assert primera.numero.startswith("FAC-")
         assert primera.datos["iva_importe"] == 21.0
         assert primera.datos["total"] == 121.0
+        assert primera.datos["plantilla_provisional"] is False
 
         with open(segunda.pdf_path, "rb") as fh:
             assert fh.read()[:4] == b"%PDF"
@@ -187,7 +193,7 @@ def test_no_se_genera_sin_plantilla_activa(monkeypatch, tmp_path, clean_database
         cliente = _cliente(session, "5")
         session.commit()
         with pytest.raises(DatosFaltantesError) as exc_info:
-            generar_contrato(session, cliente, precio=100.0)
+            generar_contrato(session, cliente, precio=100.0, servicio="Alerta Tráfico – Empresas", forma_pago="Transferencia")
         assert any(f.campo == "plantilla" for f in exc_info.value.faltantes)
     finally:
         session.execute(PlantillaDocumento.__table__.update().where(PlantillaDocumento.tipo == "contrato").values(activo=True))

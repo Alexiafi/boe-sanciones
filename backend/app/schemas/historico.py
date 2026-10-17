@@ -34,7 +34,21 @@ class HistoricoResultadoOut(BaseModel):
 
 
 class ConsultaItemOut(BaseModel):
-    historico_doc_id: int
+    """One hit of "Consulta por DNI/CIF". ``tipo`` is ``sancion`` for a
+    structured opportunity from the 30-day panel (``sancionado_id`` set) or
+    ``documento`` for a regex-index document (``historico_doc_id`` set)."""
+
+    tipo: str = "documento"
+    historico_doc_id: int | None = None
+    sancionado_id: int | None = None
+    codigo: str | None = None
+    cliente_id: int | None = None
+    nombre: str | None = None
+    identificador: str | None = None
+    importe_multa_eur: float | None = None
+    organismo_emisor: str | None = None
+    expediente: str | None = None
+    url_documento: str | None = None
     boe_id: str
     fuente: str
     fecha_publicacion: date
@@ -81,6 +95,9 @@ class ClienteHistoricoBuscarResponse(BaseModel):
     resultados: list[HistoricoResultadoOut]
     avisos: list[str]
     cobertura_teu: CoberturaTeuOut
+    # Opportunities from the 30-day panel attached to this client by
+    # identifier during this search (see busqueda.vincular_sanciones_por_identificador).
+    sanciones_vinculadas: int = 0
 
 
 class HistoricoExtraerRequest(BaseModel):

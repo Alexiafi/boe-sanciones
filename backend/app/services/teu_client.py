@@ -41,9 +41,17 @@ SANCTION_KEYWORDS = [
     "baja cautelar",
     "propuesta de resolucion",
     "reclamacion de deuda",
+    # Traffic (the core of Judit's service). Municipal and regional traffic
+    # notices rarely say "sancion": they are titled "Notificaciones de
+    # denuncia", "Circulación e incidencias en la vía pública", "Jefatura
+    # Provincial de Tráfico…", so the sanction vocabulary above never saw them.
+    "denuncia", "denuncias",
+    "circulacion", "trafico", "transit",
+    "movilidad", "estacionamiento", "aparcamiento", "velocidad",
+    "vehiculo", "vehiculos",
+    "perdida de vigencia", "permiso de conduc", "autorizacion administrativa para conducir",
+    "tratamiento residual",
 ]
-
-MAX_TEU_PER_RUN = 200
 
 EXCLUDE_KEYWORDS = [
     "expropiacion forzosa",
@@ -59,6 +67,10 @@ EXCLUDE_KEYWORDS = [
     "plan parcial",
     "plan general",
     "acta de requerimiento",
+    # Driving-licence exams are traffic notices but not fines or debts.
+    "calificacion de prueba",
+    "obtencion del permiso",
+    "obtencion de la autorizacion",
     "notaria de ",
     "notaria ",
     "registro de la propiedad",
@@ -85,11 +97,23 @@ def _normalize(text: str) -> str:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
 def fetch_teu_index(fecha: date) -> str:
+    """HTML of the day's TEU index, or ``""`` when there is no supplement.
+
+    The BOE answers a date without a notifications supplement (Sundays: 404;
+    some weekdays, e.g. 2026-09-30: a redirect to the ordinary summary page)
+    in ways that used to look like an empty-but-successful index or, for the
+    404, like a failure retried three times. Neither is an error."""
     url = TEU_INDEX_URL.format(year=fecha.year, month=fecha.month, day=fecha.day)
     logger.info("Fetching TEU index for %s: %s", fecha, url)
     with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
         resp = client.get(url)
+        if resp.status_code == 404:
+            logger.info("Sin suplemento de notificaciones (TEU) el %s", fecha)
+            return ""
         resp.raise_for_status()
+        if "/boe_n/" not in resp.url.path:
+            logger.info("El BOE redirige %s al sumario ordinario: sin suplemento TEU", fecha)
+            return ""
         return resp.text
 
 

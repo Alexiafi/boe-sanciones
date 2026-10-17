@@ -66,13 +66,22 @@ def html_to_text(html_content: str) -> str:
     return " ".join(soup.get_text(" ", strip=True).split())
 
 
+def limpiar_texto_pdf(text: str) -> str:
+    """Collapse whitespace and drop the one-character lines pdfminer emits for
+    the BOE's vertical "Verificable en https://www.boe.es · CVE: …" watermark
+    (every page carries it, one letter per line): pure noise that was stored,
+    indexed and — worst — billed as OpenAI input tokens."""
+    lineas = [linea.strip() for linea in text.splitlines()]
+    return " ".join(" ".join(linea for linea in lineas if len(linea) > 1).split())
+
+
 def pdf_to_text(pdf_bytes: bytes) -> str:
     """Extract text from a PDF using pdfminer."""
     try:
         from pdfminer.high_level import extract_text
         with io.BytesIO(pdf_bytes) as f:
             text = extract_text(f)
-        return " ".join(text.split())
+        return limpiar_texto_pdf(text)
     except Exception:
         logger.exception("Failed to extract text from PDF")
         return ""

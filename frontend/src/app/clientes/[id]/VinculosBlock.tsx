@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { VinculoCliente } from "@/lib/types";
 import { Button, Card, CardTitle, ConfirmDialog, EmptyState, Field, Input, Notice, Select, Spinner } from "@/components/ui";
 
-export function VinculosBlock({ clienteId }: { clienteId: number }) {
+export function VinculosBlock({ clienteId, onCambio }: { clienteId: number; onCambio?: () => void }) {
+  const router = useRouter();
   const [vinculos, setVinculos] = useState<VinculoCliente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [convirtiendo, setConvirtiendo] = useState<VinculoCliente | null>(null);
+  const [convirtiendoEnCurso, setConvirtiendoEnCurso] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const [rol, setRol] = useState("");
   const [nombre, setNombre] = useState("");
@@ -80,6 +85,30 @@ export function VinculosBlock({ clienteId }: { clienteId: number }) {
     }
   };
 
+  const confirmarConversion = async () => {
+    if (!convirtiendo) return;
+    setConvirtiendoEnCurso(true);
+    setError(null);
+    try {
+      const res = await api.clientes.convertirVinculo(clienteId, convirtiendo.id);
+      const nuevo = res.cliente as { id: number; codigo: string; nombre_razon_social: string };
+      setConvirtiendo(null);
+      setAviso(
+        res.created
+          ? `${nuevo.nombre_razon_social} ya tiene su propia ficha de cliente (${nuevo.codigo}).`
+          : `${nuevo.nombre_razon_social} ya era cliente (${nuevo.codigo}).`
+      );
+      await load();
+      onCambio?.();
+      if (res.created) router.push(`/clientes/${nuevo.id}`);
+    } catch (err) {
+      setError(`No se pudo convertir el vínculo en cliente: ${err instanceof Error ? err.message : String(err)}`);
+      setConvirtiendo(null);
+    } finally {
+      setConvirtiendoEnCurso(false);
+    }
+  };
+
   return (
     <Card>
       <CardTitle>Vínculos (administrador, conductor, filial…)</CardTitle>
@@ -122,6 +151,11 @@ export function VinculosBlock({ clienteId }: { clienteId: number }) {
           {error}
         </Notice>
       )}
+      {aviso && (
+        <Notice tone="success" className="mt-4">
+          {aviso}
+        </Notice>
+      )}
 
       <div className="mt-5">
         {loading && <Spinner />}
@@ -141,10 +175,14 @@ export function VinculosBlock({ clienteId }: { clienteId: number }) {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  {vinculo.cliente_vinculado_id && (
+                  {vinculo.cliente_vinculado_id ? (
                     <Link href={`/clientes/${vinculo.cliente_vinculado_id}`} className="text-xs font-medium text-primary hover:underline">
-                      Ver ficha
+                      Ver ficha de cliente
                     </Link>
+                  ) : (
+                    <Button size="sm" variant="secondary" onClick={() => setConvirtiendo(vinculo)} disabled={!vinculo.nombre}>
+                      Convertir en cliente
+                    </Button>
                   )}
                   <button onClick={() => setBorrando(vinculo)} className="text-xs text-on-surface-variant hover:text-error">
                     Eliminar
@@ -155,6 +193,26 @@ export function VinculosBlock({ clienteId }: { clienteId: number }) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={convirtiendo !== null}
+        onOpenChange={(open) => !open && setConvirtiendo(null)}
+        title="Convertir vínculo en cliente"
+        description={
+          convirtiendo
+            ? `${convirtiendo.nombre} (${convirtiendo.rol}) tendrá su propia ficha de cliente, con sus datos de contacto, sus sanciones y su histórico, como cualquier otro cliente. El vínculo con esta ficha se conserva en ambos sentidos.`
+            : undefined
+        }
+        confirmLabel={convirtiendoEnCurso ? "Convirtiendo…" : "Crear ficha de cliente"}
+        onConfirm={confirmarConversion}
+        confirmDisabled={convirtiendoEnCurso}
+      >
+        {convirtiendo && (
+          <p className="text-sm text-on-surface-variant">
+            Las sanciones ya asignadas a {convirtiendo.nombre} en esta ficha pasan a su nueva ficha; las de la sociedad se quedan aquí.
+          </p>
+        )}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={borrando !== null}

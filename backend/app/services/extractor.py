@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
+from openai.lib._parsing import type_to_response_format_param
 from pydantic import BaseModel
 
 from app.config import settings
@@ -39,6 +40,15 @@ Para CADA persona o entidad afectada, extrae toda la información disponible.
 Si un campo no aparece explícitamente en el texto, devuelve null.
 Si un identificador (DNI/NIF/CIF) está parcialmente oculto con asteriscos (***), \
 extráelo tal cual aparece.
+
+DATOS DE CONTACTO:
+- `telefono` y `email`: devuélvelos SIEMPRE como null. En estos documentos el único teléfono o email \
+que aparece es el de la Administración que publica (atención al ciudadano, recaudación, juzgado, \
+sede electrónica), nunca el de la persona afectada; sus datos de contacto se obtienen por otra vía.
+- `direccion`, `localidad`, `provincia`, `codigo_postal`: solo los de la propia persona o entidad \
+afectada (su domicilio). NUNCA la dirección del organismo, de sus oficinas o de un juzgado.
+- Un edicto del Tablón Edictal Único identifica a la persona solo por su DNI/NIF/CIF: \
+en ese caso `nombre` es null. No inventes nombres ni uses el de funcionarios o firmantes.
 
 IMPORTANTE: Si el documento es un convenio de formación, acuerdo de colaboración, \
 nombramiento, o cualquier documento que NO contenga sanciones, embargos ni deudas, \
@@ -97,43 +107,105 @@ class ResultadoExtraccion(BaseModel):
 SancionadoExtraido = AfectadoExtraido
 
 
-def extract_sanctions(text: str, titulo: str = "") -> ResultadoExtraccion:
-    """
-    Use OpenAI structured outputs to extract affected entities from BOE text.
-    Falls back to an empty result on error.
-    """
-    if not settings.openai_api_key:
-        logger.warning("No OpenAI API key configured, skipping extraction")
-        return ResultadoExtraccion(afectados=[], resumen=None, es_documento_relevante=False)
+def _resultado_vacio() -> ResultadoExtraccion:
+    return ResultadoExtraccion(afectados=[], resumen=None, es_documento_relevante=False)
 
+
+def _admite_temperature(model: str) -> bool:
+    """Reasoning-class models (gpt-5 family, o-series) reject any
+    ``temperature`` other than the default; sending it makes the whole
+    request fail with a 400, so it is only included where it is accepted."""
+    lowered = model.lower()
+    return not (lowered.startswith("gpt-5") or lowered.startswith("o1") or lowered.startswith("o3") or lowered.startswith("o4"))
+
+
+# Flipped on the first time the API rejects ``reasoning_effort`` for the
+# configured model: from then on this process stops sending it instead of
+# failing every document (a typo in .env must not stop the whole pipeline).
+_REASONING_EFFORT_RECHAZADO = False
+
+
+def _reasoning_effort_activo() -> bool:
+    return bool((settings.openai_reasoning_effort or "").strip()) and not _REASONING_EFFORT_RECHAZADO
+
+
+def build_extraction_request(text: str, titulo: str = "", *, model: str | None = None) -> dict[str, Any]:
+    """The exact ``/v1/chat/completions`` body used for one document.
+
+    Shared verbatim by the real-time path (``extract_sanctions``) and the
+    Batch API path (``services/openai_batch.py``), so both modes produce the
+    same structured output for the same document — the only difference is
+    price and latency.
+    """
+    model = model or settings.openai_model
     truncated = text[:MAX_TEXT_CHARS]
     user_msg = (
         f"TÍTULO DEL DOCUMENTO BOE:\n{titulo}\n\n"
         f"TEXTO DEL DOCUMENTO:\n{truncated}"
     )
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+        "response_format": type_to_response_format_param(ResultadoExtraccion),
+    }
+    if _admite_temperature(model):
+        body["temperature"] = 0.0
+    elif _reasoning_effort_activo():
+        body["reasoning_effort"] = settings.openai_reasoning_effort.strip()
+    return body
 
+
+def parse_extraction_response(body: dict[str, Any]) -> ResultadoExtraccion:
+    """Turn a raw chat-completion response body (real-time or one batch
+    output line) into ``ResultadoExtraccion``. Raises on a refusal or on
+    content that does not match the schema — callers decide whether that is
+    a per-document error (it is) rather than silently returning nothing."""
+    choices = body.get("choices") or []
+    if not choices:
+        raise ValueError("Respuesta de OpenAI sin 'choices'")
+    message = choices[0].get("message") or {}
+    if message.get("refusal"):
+        raise ValueError(f"OpenAI rechazó la petición: {message['refusal']}")
+    content = message.get("content")
+    if not content:
+        raise ValueError("Respuesta de OpenAI sin contenido")
+    return ResultadoExtraccion.model_validate_json(content)
+
+
+def _es_rechazo_de_reasoning_effort(exc: Exception) -> bool:
+    return isinstance(exc, BadRequestError) and "reasoning" in str(exc).lower()
+
+
+def extract_sanctions(text: str, titulo: str = "") -> ResultadoExtraccion:
+    """
+    Use OpenAI structured outputs to extract affected entities from BOE text.
+    Real-time path: one synchronous call per document (the pipeline runs several
+    of them at once, see ``tasks/scraping.py``). Raises on API errors so the
+    pipeline records the document as ``error`` (and can retry it on a later
+    run) instead of marking it completed with zero affected parties.
+    """
+    global _REASONING_EFFORT_RECHAZADO
+    if not settings.openai_api_key:
+        logger.warning("No OpenAI API key configured, skipping extraction")
+        return _resultado_vacio()
+
+    # max_retries covers 429/5xx/timeouts with exponential backoff: several
+    # documents are in flight at once, so the occasional rate limit is normal.
+    client = OpenAI(api_key=settings.openai_api_key, max_retries=6, timeout=settings.openai_timeout_s)
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
-        completion = client.beta.chat.completions.parse(
-            model=settings.openai_model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg},
-            ],
-            response_format=ResultadoExtraccion,
-            temperature=0.0,
-        )
-        result = completion.choices[0].message.parsed
-        if result is None:
-            logger.warning("OpenAI returned unparseable response")
-            return ResultadoExtraccion(afectados=[], resumen=None, es_documento_relevante=False)
-
-        logger.info(
-            "Extracted %d affected entities (relevant=%s)",
-            len(result.afectados), result.es_documento_relevante,
-        )
-        return result
-
-    except Exception:
-        logger.exception("OpenAI extraction failed")
-        return ResultadoExtraccion(afectados=[], resumen=None, es_documento_relevante=False)
+        completion = client.chat.completions.create(**build_extraction_request(text, titulo))
+    except Exception as exc:
+        if not _es_rechazo_de_reasoning_effort(exc):
+            raise
+        logger.warning("OpenAI rechazó reasoning_effort para %s; se envía sin él: %s", settings.openai_model, exc)
+        _REASONING_EFFORT_RECHAZADO = True
+        completion = client.chat.completions.create(**build_extraction_request(text, titulo))
+    result = parse_extraction_response(completion.model_dump(mode="json"))
+    logger.info(
+        "Extracted %d affected entities (relevant=%s)",
+        len(result.afectados), result.es_documento_relevante,
+    )
+    return result

@@ -47,6 +47,17 @@ export interface Sancionado {
   contacto_actualizado_at: string | null;
   cliente_id: number | null;
 
+  // Identity across notices: the notice itself often has no name (the TEU
+  // identifies people by DNI/CIF only), but the party may be a client or have
+  // been called already through another notice.
+  nombre_mostrado: string | null;
+  cliente_nombre: string | null;
+  cliente_estado: "activo" | "informado" | "inactivo" | null;
+  otras_notificaciones: number;
+  ya_contactado: boolean;
+  ultima_gestion: string | null;
+  notas_del_titular: number;
+
   boe_id: string | null;
   fecha_publicacion: string | null;
   titulo_documento: string | null;
@@ -54,6 +65,30 @@ export interface Sancionado {
   url_documento: string | null;
   tiene_copia_local: boolean;
   seguimientos?: Seguimiento[];
+  relacionadas?: SancionRelacionada[];
+  seguimientos_relacionados?: SeguimientoRelacionado[];
+}
+
+export interface SancionRelacionada {
+  id: number;
+  codigo: string;
+  estado_oportunidad: Sancionado["estado_oportunidad"];
+  fecha_publicacion: string | null;
+  organismo_emisor: string | null;
+  expediente: string | null;
+  importe_multa_eur: number | null;
+  importe_deuda_eur: number | null;
+  cliente_id: number | null;
+  ultima_nota: string | null;
+}
+
+export interface SeguimientoRelacionado {
+  id: number;
+  sancionado_id: number;
+  codigo: string;
+  nota: string | null;
+  estado: string;
+  created_at: string;
 }
 
 export interface EnriquecimientoIntento {
@@ -88,10 +123,13 @@ export interface Cliente {
   codigo_postal: string | null;
   web: string | null;
   sector: string | null;
-  estado_cliente: "activo" | "inactivo";
+  // activo = contracted client · informado = prospect that only gets information · inactivo
+  estado_cliente: "activo" | "informado" | "inactivo";
   fecha_contrato: string | null;
   precio_contrato: number | null;
-  sancion_origen_id: number;
+  // null for a client promoted from a vínculo (see vinculo_origen_id)
+  sancion_origen_id: number | null;
+  vinculo_origen_id: number | null;
   created_at: string;
   deuda_pendiente_eur: number;
 }
@@ -152,6 +190,19 @@ export interface AccionAgendada {
   created_at: string;
 }
 
+export interface AgendaItem extends AccionAgendada {
+  cliente_nombre: string | null;
+  cliente_codigo: string | null;
+  vencida: boolean;
+}
+
+export interface AgendaResumen {
+  vencidas: number;
+  hoy: number;
+  proximas: number;
+  sin_fecha: number;
+}
+
 export interface ClienteDetail extends Cliente {
   sanciones: SancionVinculada[];
   notas: NotaCliente[];
@@ -189,9 +240,21 @@ export interface CoberturaTeu {
 }
 
 export interface ConsultaItem {
-  historico_doc_id: number;
+  // "sancion": structured opportunity from the 30-day panel (sancionado_id set)
+  // "documento": regex-index document (historico_doc_id set)
+  tipo: "sancion" | "documento";
+  historico_doc_id: number | null;
+  sancionado_id: number | null;
+  codigo: string | null;
+  cliente_id: number | null;
+  nombre: string | null;
+  identificador: string | null;
+  importe_multa_eur: number | null;
+  organismo_emisor: string | null;
+  expediente: string | null;
+  url_documento: string | null;
   boe_id: string;
-  fuente: "boe" | "teu";
+  fuente: "boe" | "teu" | "manual";
   fecha_publicacion: string;
   titulo: string;
   via_match: string;
@@ -287,6 +350,8 @@ export interface Notificacion {
   leida: boolean;
   sancionado_id: number | null;
   cliente_id: number | null;
+  cliente_nombre: string | null;
+  identificador?: string | null;
   created_at: string;
 }
 
@@ -303,8 +368,56 @@ export interface ScrapingRun {
   extraction_provider: string | null;
   extraction_limit: number | null;
   extraction_attempts: number;
+  fase?: string | null;
+  progreso_actual?: number | null;
+  progreso_total?: number | null;
+  heartbeat_at?: string | null;
   started_at: string | null;
   finished_at: string | null;
+  created_at: string;
+}
+
+export type ModoExtraccion = "tiempo_real" | "batch";
+
+export interface ConfiguracionRuntime {
+  extraccion_automatica: boolean;
+  extraccion_modo: ModoExtraccion;
+  historico_extraccion_modo: ModoExtraccion;
+  extraccion_max_docs_por_ejecucion: number;
+  teu_max_por_ejecucion: number;
+}
+
+export interface EstadoEntorno {
+  openai_extraccion_disponible: boolean;
+  openai_extraccion_motivo: string | null;
+  openai_modelo: string;
+  enriquecimiento_disponible: boolean;
+  enriquecimiento_motivo: string | null;
+  email_disponible: boolean;
+  email_motivo: string | null;
+  backfill_historico_habilitado: boolean;
+}
+
+export interface ConfiguracionResponse {
+  configuracion: ConfiguracionRuntime;
+  entorno: EstadoEntorno;
+}
+
+export interface ExtraccionBatch {
+  id: number;
+  tipo: "diario" | "historico_cliente";
+  scraping_run_id: number | null;
+  modelo: string;
+  status: "preparando" | "enviado" | "en_progreso" | "completado" | "fallido" | "expirado" | "cancelado";
+  openai_batch_id: string | null;
+  total_items: number;
+  completados: number;
+  errores: number;
+  sancionados_creados: number;
+  error_log: string | null;
+  enviado_at: string | null;
+  ultimo_check_at: string | null;
+  finalizado_at: string | null;
   created_at: string;
 }
 

@@ -51,7 +51,11 @@ def ejecutar_radar_clientes(db: Session) -> dict[str, int]:
     on brand-new, high-confidence matches. Idempotent: ``buscar_historico``
     never duplicates ``HistoricoResultado`` rows, and this only ever alerts
     once per row — the first time it's created."""
-    clientes = db.execute(select(Cliente).where(Cliente.estado_cliente == "activo")).scalars().all()
+    # "informado" clients (prospects Judit sends information to) are watched too:
+    # a new fine of theirs is exactly the moment to call again.
+    clientes = db.execute(
+        select(Cliente).where(Cliente.estado_cliente.in_(("activo", "informado")))
+    ).scalars().all()
     stats = {"clientes_revisados": len(clientes), "alertas_creadas": 0}
 
     for cliente in clientes:

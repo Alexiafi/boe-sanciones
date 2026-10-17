@@ -76,6 +76,7 @@ def test_recorrido_completo_oportunidad_a_documentos(monkeypatch, tmp_path, clea
     monkeypatch.setattr(settings, "emisor_nombre", "Despacho Judit SL")
     monkeypatch.setattr(settings, "emisor_cif", "B99999999")
     monkeypatch.setattr(settings, "emisor_direccion", "Gran Vía 1, Madrid")
+    monkeypatch.setattr(settings, "emisor_iban", "ES9121000418450200051332")
     monkeypatch.setattr(settings, "factura_serie", "FAC")
     monkeypatch.setattr(settings, "documentos_dir", str(tmp_path))
 
@@ -118,8 +119,12 @@ def test_recorrido_completo_oportunidad_a_documentos(monkeypatch, tmp_path, clea
 
         monkeypatch.setattr(settings, "openai_extraction_enabled", True)
         monkeypatch.setattr(settings, "openai_api_key", "fake-key-not-used")
+        # modo="tiempo_real" pins the synchronous path: the runtime default
+        # for historical extraction is the Batch API (see
+        # services/configuracion.py), which is exercised in
+        # tests/test_extraccion_batch.py with a fake transport.
         resultado_extraccion = extraer_historico(
-            [resultado_id], permitir_extraccion_pago=True,
+            [resultado_id], permitir_extraccion_pago=True, modo="tiempo_real",
             dependencies=ExtraccionHistoricaDependencies(extractor=extractor_falso),
         )
         assert resultado_extraccion["extraidos"] == 1
@@ -140,7 +145,10 @@ def test_recorrido_completo_oportunidad_a_documentos(monkeypatch, tmp_path, clea
         assert resp_validar.status_code == 200
         assert resp_validar.json()["listo"] is True
 
-        resp_contrato = client.post(f"/api/clientes/{cliente_id}/contrato", json={"precio": 1200.0})
+        resp_contrato = client.post(
+            f"/api/clientes/{cliente_id}/contrato",
+            json={"precio": 1200.0, "servicio": "Alerta Tráfico – Empresas", "forma_pago": "Transferencia bancaria"},
+        )
         assert resp_contrato.status_code == 200, resp_contrato.text
         documento_contrato = resp_contrato.json()
         assert documento_contrato["tipo"] == "contrato"

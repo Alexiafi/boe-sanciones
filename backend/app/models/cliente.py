@@ -11,9 +11,10 @@ from app.database import Base
 
 
 class Cliente(Base):
-    """A converted opportunity. ``sancion_origen_id`` is unique: one Sancionado
-    converts to at most one Cliente, which is what makes the conversion
-    endpoint idempotent (see services/clientes.py)."""
+    """A converted opportunity, or a vínculo promoted to its own ficha.
+    ``sancion_origen_id`` is unique: one Sancionado converts to at most one
+    Cliente, which is what makes the conversion endpoint idempotent (see
+    services/clientes.py)."""
 
     __tablename__ = "clientes"
 
@@ -43,8 +44,16 @@ class Cliente(Base):
     # Not an ORM relationship on purpose: Sancionado.cliente_id and this column
     # form two independent FK paths between the same two tables, which would
     # make an implicit relationship() ambiguous. The API layer queries both
-    # directions explicitly instead.
-    sancion_origen_id: Mapped[int] = mapped_column(ForeignKey("sancionados.id"), unique=True, nullable=False)
+    # directions explicitly instead. Nullable since migration 0011: a client
+    # created from a vínculo (the administrador of a company that is already
+    # a client) has no originating opportunity — see ``vinculo_origen_id``.
+    sancion_origen_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sancionados.id"), unique=True, nullable=True)
+    # Which vínculo this client was converted from (services/clientes.
+    # convertir_vinculo). Purely a trace; the live link between the two
+    # fichas is VinculoCliente.cliente_vinculado_id on the parent's side.
+    vinculo_origen_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("vinculos_cliente.id", ondelete="SET NULL", name="fk_clientes_vinculo_origen_id"), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

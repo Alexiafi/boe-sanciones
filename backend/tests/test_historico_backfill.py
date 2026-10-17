@@ -214,6 +214,6 @@ def test_backfill_no_puede_llamar_a_openai_estructuralmente():
 
 
 def test_backfill_no_esta_en_el_beat_schedule():
-    assert set(celery.conf.beat_schedule.keys()) == {"scrape-boe-morning", "scrape-boe-evening"}
+    assert set(celery.conf.beat_schedule.keys()) == {"scrape-boe-today-morning", "scrape-boe-today", "scrape-boe-catch-up", "openai-batches-poll"}
     for entry in celery.conf.beat_schedule.values():
         assert "backfill" not in entry["task"]

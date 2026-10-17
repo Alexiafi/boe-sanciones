@@ -31,18 +31,25 @@ def indice_identificadores(db: Session) -> dict[str, tuple[int, int | None]]:
             if normalizado:
                 indice[normalizado] = (cliente_id, None)
 
+    # A vínculo that already has its own client ficha (cliente_vinculado_id
+    # set — e.g. an administrador converted with convertir_vinculo) is
+    # covered by that client's own row above; letting it overwrite here would
+    # route their sanctions to the parent company instead of to them.
     for vinculo_id, cliente_id, identificador in db.execute(
-        select(VinculoCliente.id, VinculoCliente.cliente_id, VinculoCliente.identificador)
+        select(VinculoCliente.id, VinculoCliente.cliente_id, VinculoCliente.identificador).where(
+            VinculoCliente.cliente_vinculado_id.is_(None)
+        )
     ).all():
         normalizado = normalizar_identificador(identificador)
-        if normalizado:
+        if normalizado and normalizado not in indice:
             indice[normalizado] = (cliente_id, vinculo_id)
 
     return indice
 
 
 def asignar_sancion_a_cliente(
-    db: Session, sancionado: Sancionado, cliente_id: int, vinculo_id: int | None
+    db: Session, sancionado: Sancionado, cliente_id: int, vinculo_id: int | None, *, notificar: bool = True,
+    motivo: str = "por coincidencia de identificador",
 ) -> bool:
     """Attach an opportunity's sanction to an existing client account.
 
@@ -50,6 +57,8 @@ def asignar_sancion_a_cliente(
     path on a replay, or by the manual conversion in
     ``services/clientes.convertir_oportunidad``) is left untouched, so this
     never moves an existing link or duplicates the notification/actividad.
+    ``notificar=False`` leaves the in-app alert to the caller (the pipeline
+    raises it once, after the opportunity's identity is fully resolved).
     """
     if sancionado.cliente_id is not None:
         return False
@@ -69,12 +78,13 @@ def asignar_sancion_a_cliente(
     db.add(ActividadCliente(
         cliente_id=cliente_id, tipo="sistema",
         titulo=f"Nueva sanción detectada{f' ({titular})' if titular else ''}",
-        detalle=f"Sanción {sancionado.codigo} asignada automáticamente por coincidencia de identificador.",
+        detalle=f"Sanción {sancionado.codigo} asignada automáticamente {motivo}.",
         datos={"sancionado_id": sancionado.id, "vinculo_id": vinculo_id},
     ))
-    create_inapp_notification(
-        db, sancionado, tipo="nueva_sancion_cliente", cliente_id=cliente_id, vinculo_id=vinculo_id,
-    )
+    if notificar:
+        create_inapp_notification(
+            db, sancionado, tipo="nueva_sancion_cliente", cliente_id=cliente_id, vinculo_id=vinculo_id,
+        )
     return True
 
 

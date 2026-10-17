@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from app.schemas.sancionado import normalise_identificador_fiscal
+
 
 class ClienteOut(BaseModel):
     id: int
@@ -27,7 +29,9 @@ class ClienteOut(BaseModel):
     estado_cliente: str
     fecha_contrato: date | None = None
     precio_contrato: float | None = None
-    sancion_origen_id: int
+    # None for a client promoted from a vínculo (see vinculo_origen_id).
+    sancion_origen_id: int | None = None
+    vinculo_origen_id: int | None = None
     created_at: datetime
 
     # Never stored, always computed at read time (see services/clientes.deuda_pendiente_eur).
@@ -233,6 +237,34 @@ class AccionAgendadaUpdate(BaseModel):
 
     estado: Literal["pendiente", "hecha", "cancelada"] | None = None
     notas: str | None = None
+    tipo: Literal["llamada", "email", "tarea"] | None = None
+    titulo: str | None = None
+    fecha_programada: datetime | None = None
+
+    @field_validator("titulo")
+    @classmethod
+    def titulo_not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            raise ValueError("El título no puede ser null")
+        value = value.strip()
+        if not value:
+            raise ValueError("El título de la acción no puede estar vacío")
+        return value
+
+    @field_validator("estado", "tipo", mode="before")
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("el valor no puede ser null")
+        return value
+
+
+class AgendaItemOut(AccionAgendadaOut):
+    """An agenda entry with the client it belongs to (global agenda view)."""
+
+    cliente_nombre: str | None = None
+    cliente_codigo: str | None = None
+    vencida: bool = False
 
 
 class ClienteDetail(ClienteOut):
@@ -246,7 +278,8 @@ class ClienteDetail(ClienteOut):
 class ClienteUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
-    estado_cliente: Literal["activo", "inactivo"] | None = None
+    estado_cliente: Literal["activo", "informado", "inactivo"] | None = None
+    nombre_razon_social: str | None = None
     persona_contacto: str | None = None
     telefono: str | None = None
     email: str | None = None
@@ -258,6 +291,8 @@ class ClienteUpdate(BaseModel):
     codigo_postal: str | None = None
     fecha_contrato: date | None = None
     precio_contrato: float | None = None
+    cif_nif: str | None = None
+    dni_nie: str | None = None
 
     @field_validator("estado_cliente", mode="before")
     @classmethod
@@ -265,6 +300,13 @@ class ClienteUpdate(BaseModel):
         if value is None:
             raise ValueError("estado_cliente no puede ser null")
         return value
+
+    @field_validator("nombre_razon_social", mode="before")
+    @classmethod
+    def reject_blank_nombre_razon_social(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            raise ValueError("nombre_razon_social no puede quedar vacío")
+        return value.strip()
 
     @field_validator("telefono", mode="before")
     @classmethod
@@ -301,3 +343,8 @@ class ClienteUpdate(BaseModel):
         if len(value) > 500 or not re.match(r"^https?://", value):
             raise ValueError("URL no válida (debe comenzar por http:// o https://)")
         return value
+
+    @field_validator("cif_nif", "dni_nie", mode="before")
+    @classmethod
+    def validate_identificador(cls, value: str | None) -> str | None:
+        return normalise_identificador_fiscal(value)

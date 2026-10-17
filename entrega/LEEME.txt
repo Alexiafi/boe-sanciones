@@ -1,0 +1,38 @@
+BOE SANCIONES - ACTUALIZACION (Windows)
+=======================================
+
+Esta carpeta es el paquete completo de la nueva version. Trae el .env ya preparado.
+
+COMO ACTUALIZAR (unos 10 minutos)
+  1. Docker Desktop abierto (icono de la ballena en la barra de tareas, sin errores).
+  2. Descomprimir el zip (clic derecho -> Extraer todo) en el Escritorio o en Descargas.
+  3. Dentro de la carpeta, doble clic en:   ACTUALIZAR.bat
+     (Si Windows avisa "Windows protegio su PC": Mas informacion -> Ejecutar de todas formas.)
+  4. Se abre una ventana negra/azul. Ensena que cambia en el .env y pregunta una sola vez: escribir  s  y Enter.
+
+  El script encuentra solo la instalacion actual, hace una copia de seguridad de la base de datos (en
+  C:\Users\<usuario>\boe-sanciones-copias), pone el codigo nuevo y el .env, reconstruye, aplica las migraciones y
+  comprueba que no se ha perdido ningun cliente ni contrato/factura.
+
+  Si no hay instalacion previa, instala desde cero en esta misma carpeta.
+
+  Si el doble clic no funciona: abrir PowerShell en esta carpeta (en el Explorador: escribir  powershell  en la
+  barra de direcciones y Enter) y ejecutar:
+
+        powershell -ExecutionPolicy Bypass -File .\actualizar.ps1
+
+QUE NO SE TOCA
+  - La base de datos (clientes, sanciones, notas, facturas).
+  - Los contratos y facturas ya generados (backend\data).
+
+SI ALGO SALE MAL
+  - Todo queda registrado en C:\Users\<usuario>\boe-sanciones-copias\actualizacion-<fecha>.log
+  - Para volver a la version anterior:   doble clic en  VOLVER_ATRAS.bat
+
+NO HACER
+  - No usar nunca "docker compose down -v" (el -v borra la base de datos).
+  - No copiar esta carpeta encima de la instalacion antigua a mano: el .env y las credenciales de la base de
+    datos se gestionan en el script.
+
+DOCUMENTACION
+  docs\GUIA_OPERATIVA.md

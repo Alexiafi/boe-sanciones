@@ -13,10 +13,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from sqlalchemy import select, text
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.cliente import Cliente, VinculoCliente
+from app.models.sancionado import Sancionado
+from app.services.boe_client import absoluta_url_boe, url_documento_boe
 from app.models.historico import HistoricoDoc, HistoricoResultado
 from app.services.historico.indexado import upsert_historico_doc
 from app.services.historico.patterns import (
@@ -33,7 +35,7 @@ from app.services.historico.teu_publico import (
     get_teu_buscador,
     teu_search_available,
 )
-from app.services.vinculos import vinculos_de_cliente
+from app.services.vinculos import asignar_sancion_a_cliente, vinculos_de_cliente
 
 __all__ = [
     "AVISO_TEU",
@@ -158,6 +160,118 @@ def _buscar_por_nombre(db: Session, claves: ClavesCliente, *, limite: int) -> li
     return resultados
 
 
+def _identificador_sql(columna):
+    """Same normalisation ``patterns.normalizar_identificador`` applies in
+    Python (upper-case, alphanumerics only), expressed in SQL so a stored
+    "B-95.958.617" still matches a typed "b95958617"."""
+    return func.regexp_replace(func.upper(columna), "[^A-Z0-9]", "", "g")
+
+
+def _buscar_sancionados(db: Session, claves: ClavesCliente, *, limite: int = 200) -> list[tuple[Sancionado, str, float]]:
+    """The 30-day panel (``sancionados``) is structured data the daily
+    OpenAI extraction already paid for; "Consulta por DNI/CIF" must find a
+    CIF there just as it finds it in the regex index — otherwise a sanction
+    visible on the panel is "not found" a click later."""
+    encontrados: dict[int, tuple[Sancionado, str, float]] = {}
+    opciones = selectinload(Sancionado.documento)
+
+    def _mejor_sancionado(sancionado: Sancionado, via: str, score: float) -> None:
+        previo = encontrados.get(sancionado.id)
+        if previo is None or score > previo[2]:
+            encontrados[sancionado.id] = (sancionado, via, score)
+
+    for clave in claves.identificadores:
+        via = "dni" if claves.dni_completo and clave == claves.dni_completo else "cif"
+        filas = db.execute(
+            select(Sancionado).options(opciones).where(_identificador_sql(Sancionado.identificador) == clave).limit(limite)
+        ).scalars().all()
+        for sancionado in filas:
+            _mejor_sancionado(sancionado, via, 1.0)
+    for matricula in claves.matriculas:
+        filas = db.execute(
+            select(Sancionado).options(opciones).where(_identificador_sql(Sancionado.matricula_coche) == matricula).limit(limite)
+        ).scalars().all()
+        for sancionado in filas:
+            _mejor_sancionado(sancionado, "matricula", 0.90)
+    if claves.nombre_norm:
+        patron = f"%{claves.nombre_norm}%"
+        filas = db.execute(
+            select(Sancionado).options(opciones).where(_nombre_sql(Sancionado.nombre).ilike(patron)).limit(limite)
+        ).scalars().all()
+        for sancionado in filas:
+            _mejor_sancionado(sancionado, "nombre", 0.60)
+    return list(encontrados.values())
+
+
+# Accented capitals a Spanish name can carry, mapped the way
+# patterns.normalizar_nombre strips them (NFKD → base letter, Ñ included),
+# using the built-in translate() so no ``unaccent`` extension is needed.
+_ACENTOS = "ÁÉÍÓÚÜÀÈÌÒÙÂÊÎÔÛÄËÏÖÑÇ"
+_SIN_ACENTOS = "AEIOUUAEIOUAEIOUAEIOUNC"
+
+
+def _nombre_sql(columna):
+    # Second translate() with an empty target deletes the dots and commas
+    # normalizar_nombre also drops ("TARIANET, S.L." ↔ "TARIANET SL").
+    return func.translate(func.translate(func.upper(columna), _ACENTOS, _SIN_ACENTOS), ".,", "")
+
+
+def _sancionado_a_item(sancionado: Sancionado, via: str, score: float) -> dict:
+    doc = sancionado.documento
+    return {
+        "historico_doc_id": None,
+        "sancionado_id": sancionado.id,
+        "codigo": sancionado.codigo,
+        "cliente_id": sancionado.cliente_id,
+        "nombre": sancionado.nombre,
+        "identificador": sancionado.identificador,
+        "boe_id": doc.boe_id,
+        "fuente": "teu" if doc.boe_id.startswith("BOE-N-") else ("manual" if (doc.source or "") == "manual" else "boe"),
+        "tipo": "sancion",
+        "fecha_publicacion": doc.fecha_publicacion.isoformat(),
+        "titulo": doc.titulo,
+        "via_match": via,
+        "score": score,
+        "url_pdf": absoluta_url_boe(doc.url_pdf),
+        "url_html": absoluta_url_boe(doc.url_html),
+        "url_xml": doc.url_xml,
+        "url_documento": url_documento_boe(
+            boe_id=doc.boe_id, fecha_publicacion=doc.fecha_publicacion, url_html=doc.url_html, url_pdf=doc.url_pdf,
+        ),
+        "fuera_de_ventana_teu": False,
+        "importe_multa_eur": float(sancionado.importe_multa_eur) if sancionado.importe_multa_eur is not None else None,
+        "organismo_emisor": sancionado.organismo_emisor,
+        "expediente": sancionado.expediente,
+    }
+
+
+def vincular_sanciones_por_identificador(db: Session, cliente: Cliente) -> int:
+    """Attach already-extracted opportunities whose identifier belongs to
+    this client or one of its vínculos (the daily auto-assignment only sees
+    sanctions extracted *after* the client existed). Returns how many were
+    attached; idempotent through ``asignar_sancion_a_cliente``."""
+    objetivos: list[tuple[str, int | None]] = []
+    for clave in claves_de_cliente(cliente).identificadores:
+        objetivos.append((clave, None))
+    for vinculo in vinculos_de_cliente(db, cliente.id):
+        if vinculo.cliente_vinculado_id is not None:
+            continue  # that person has their own ficha; their sanctions belong there
+        clave = normalizar_identificador(vinculo.identificador)
+        if clave:
+            objetivos.append((clave, vinculo.id))
+    asignadas = 0
+    for clave, vinculo_id in objetivos:
+        filas = db.execute(
+            select(Sancionado).where(
+                _identificador_sql(Sancionado.identificador) == clave, Sancionado.cliente_id.is_(None),
+            )
+        ).scalars().all()
+        for sancionado in filas:
+            if asignar_sancion_a_cliente(db, sancionado, cliente.id, vinculo_id):
+                asignadas += 1
+    return asignadas
+
+
 def _materializar_entradas_teu(db: Session, entradas: list[EntradaTeu]) -> list[HistoricoDoc]:
     docs: list[HistoricoDoc] = []
     for entrada in entradas:
@@ -268,12 +382,14 @@ def buscar_historico(
         _persistir_resultado(db, cliente.id, doc, via, score, vinculo_id)
         for doc, via, score, vinculo_id in acumulado.values()
     ]
+    sanciones_vinculadas = vincular_sanciones_por_identificador(db, cliente)
     db.commit()
     return {
         "resultados": [resultado for resultado, _creado in persistidos],
         "avisos": avisos,
         "cobertura_teu": _cobertura_teu(),
         "nuevos": [resultado.id for resultado, creado in persistidos if creado],
+        "sanciones_vinculadas": sanciones_vinculadas,
     }
 
 
@@ -302,22 +418,28 @@ def consultar_historico(
             _mejor(acumulado, doc, via, score)
         db.commit()
 
-    ordenados = sorted(acumulado.values(), key=lambda item: item[2], reverse=True)[:limite]
     hoy = date.today()
-    items = [
-        {
+    # Structured opportunities first: they carry name, amount and a link to
+    # the panel. A regex-index hit for the same document is then redundant.
+    sanciones = _buscar_sancionados(db, claves, limite=limite)
+    cubiertos = {sancionado.documento.boe_id for sancionado, _via, _score in sanciones}
+    items = [_sancionado_a_item(sancionado, via, score) for sancionado, via, score in sanciones]
+    for doc, via, score, _vinculo_id in acumulado.values():
+        if doc.boe_id in cubiertos:
+            continue
+        items.append({
             "historico_doc_id": doc.id,
+            "tipo": "documento",
             "boe_id": doc.boe_id,
             "fuente": doc.fuente,
             "fecha_publicacion": doc.fecha_publicacion.isoformat(),
             "titulo": doc.titulo,
             "via_match": via,
             "score": score,
-            "url_pdf": doc.url_pdf,
-            "url_html": doc.url_html,
+            "url_pdf": absoluta_url_boe(doc.url_pdf),
+            "url_html": absoluta_url_boe(doc.url_html),
             "url_xml": doc.url_xml,
             "fuera_de_ventana_teu": doc.fuente == "teu" and fuera_de_ventana_teu(doc.fecha_publicacion, hoy=hoy),
-        }
-        for doc, via, score, _vinculo_id in ordenados
-    ]
-    return {"resultados": items, "avisos": avisos, "cobertura_teu": _cobertura_teu()}
+        })
+    items.sort(key=lambda item: (item["score"], item["fecha_publicacion"]), reverse=True)
+    return {"resultados": items[:limite], "avisos": avisos, "cobertura_teu": _cobertura_teu()}

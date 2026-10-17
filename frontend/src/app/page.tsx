@@ -4,18 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck, Clock3, Gauge, Landmark, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
-import type { DashboardStats } from "@/lib/types";
+import type { AgendaResumen, DashboardStats } from "@/lib/types";
 import { Card, CardTitle, Chip, EmptyState, ErrorState, LinkButton, PageHeader, Spinner, StatCard } from "@/components/ui";
 import { formatDateTime } from "@/lib/formatters";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [agenda, setAgenda] = useState<AgendaResumen | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(false);
+    api.agenda.resumen().then(setAgenda).catch(() => setAgenda(null));
     api.dashboard
       .stats()
       .then((data) => setStats(data as unknown as DashboardStats))
@@ -73,6 +75,15 @@ export default function DashboardPage() {
             <StatCard label="Sancionados hoy" value={stats.sancionados_hoy} sub={`${stats.sancionados_semana.toLocaleString("es-ES")} esta semana`} />
             <StatCard label="Notificaciones" value={stats.notificaciones_sin_leer} sub="alertas pendientes de revisar" />
             <StatCard label="Alertas de clientes" value={stats.alertas_clientes_sin_leer} sub="nuevas sanciones de tus clientes" />
+            {agenda && (
+              <Link href="/agenda" className="block">
+                <StatCard
+                  label="Agenda"
+                  value={agenda.vencidas + agenda.hoy}
+                  sub={`${agenda.vencidas} vencida${agenda.vencidas === 1 ? "" : "s"} · ${agenda.hoy} para hoy`}
+                />
+              </Link>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_.95fr]">

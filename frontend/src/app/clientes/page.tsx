@@ -43,8 +43,17 @@ export default function ClientesPage() {
     <div>
       <PageHeader
         title="Directorio de entidades"
-        description="Administra la cartera de clientes, sus datos de contacto y el estado de cada relación."
-        actions={<LinkButton href="/sanciones" variant="primary"><UsersRound className="h-4 w-4" /> Convertir oportunidad <ArrowRight className="h-4 w-4" /></LinkButton>}
+        description="Clientes contratados y personas a las que solo envías información, por separado. Cualquiera se puede borrar desde su ficha."
+        actions={
+          <>
+            <LinkButton href="/sanciones/nueva?como_cliente=1" variant="secondary">
+              Nuevo cliente
+            </LinkButton>
+            <LinkButton href="/sanciones" variant="primary">
+              <UsersRound className="h-4 w-4" /> Convertir oportunidad <ArrowRight className="h-4 w-4" />
+            </LinkButton>
+          </>
+        }
       />
 
       <Card className="mb-6">
@@ -62,8 +71,9 @@ export default function ClientesPage() {
           <Field label="Estado">
             <Select value={estado} onChange={(event) => { setEstado(event.target.value); resetPage(); }}>
               <option value="">Todos los estados</option>
-              <option value="activo">Activo</option>
-              <option value="inactivo">Inactivo</option>
+              <option value="activo">Clientes (contratados)</option>
+              <option value="informado">Solo información</option>
+              <option value="inactivo">Inactivos</option>
             </Select>
           </Field>
           <Field label="Sector">
@@ -117,7 +127,9 @@ export default function ClientesPage() {
                           <span className="truncate font-semibold text-primary">{item.nombre_razon_social}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5 text-on-surface-variant">{item.cif_nif || item.dni_nie || "—"}</td>
+                      <td className="px-4 py-2.5 text-on-surface-variant">
+                        {item.cif_nif || item.dni_nie || <span className="text-xs font-medium text-tertiary-container" title="Sin DNI/CIF no se reconocen sus nuevas sanciones">Falta DNI/CIF</span>}
+                      </td>
                       <td className="px-4 py-2.5 text-xs text-on-surface-variant">{item.telefono || item.email || "—"}</td>
                       <td className="px-4 py-2.5 text-on-surface">{item.deuda_pendiente_eur ? formatCurrency(item.deuda_pendiente_eur) : "—"}</td>
                       <td className="px-4 py-2.5">

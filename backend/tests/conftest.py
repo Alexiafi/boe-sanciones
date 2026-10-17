@@ -57,6 +57,7 @@ def clean_database():
         session.execute(text("UPDATE sancionados SET cliente_id = NULL"))
         for table in (
             "documentos_comerciales", "contadores_factura",
+            "extracciones_batch_items", "extracciones_batch", "configuracion_app",
             "historico_resultados", "historico_backfill_runs",
             # vinculos_cliente.{cliente_id,cliente_vinculado_id} and
             # notificaciones.cliente_id have no ON DELETE action, so both must

@@ -49,7 +49,7 @@ def test_filters_default_range_and_safe_patch(clean_database):
         assert patched.json()["estado_oportunidad"] == "revisada"
         forbidden = client.patch(f"/api/sanciones/{recent.id}", json={"estado_oportunidad": "cliente"})
         assert forbidden.status_code == 422
-        forbidden_field = client.patch(f"/api/sanciones/{recent.id}", json={"nombre": "No permitido"})
+        forbidden_field = client.patch(f"/api/sanciones/{recent.id}", json={"codigo": "OP-HACK"})
         assert forbidden_field.status_code == 422
         # Regression: an explicit null used to slip past validation and crash the
         # NOT NULL column with a 500 IntegrityError. It must be a 422 instead.
@@ -115,6 +115,29 @@ def test_manual_contact_patch_marks_and_releases_manual_state(clean_database):
 
 
 @pytest.mark.integration
+def test_identity_patch_sets_cif_without_locking_contact(clean_database):
+    session = SyncSessionLocal()
+    today = date.today()
+    item = _opportunity(session, "6", today)
+    session.commit()
+    item_id = item.id
+    session.close()
+
+    with TestClient(app) as client:
+        patched = client.patch(f"/api/sanciones/{item_id}", json={
+            "identificador": "b-87654321",
+            "tipo_identificador": "CIF",
+            "nombre": "Transportes del Sur SL",
+        })
+        assert patched.status_code == 200
+        body = patched.json()
+        assert body["identificador"] == "B87654321"
+        assert body["tipo_identificador"] == "CIF"
+        assert body["nombre"] == "Transportes del Sur SL"
+        assert body["contacto_estado"] == "pendiente"
+
+
+@pytest.mark.integration
 def test_gaps_endpoint_is_read_only_and_bounded(clean_database):
     session = SyncSessionLocal()
     today = date.today()
@@ -133,3 +156,54 @@ def test_gaps_endpoint_is_read_only_and_bounded(clean_database):
         too_many = client.get("/api/scraping/gaps", params={"days": 999})
         assert too_many.status_code == 422
     session.close()
+
+
+@pytest.mark.integration
+def test_alta_manual_crea_multa_y_opcionalmente_cliente(clean_database):
+    from app.models.cliente import Cliente
+
+    with TestClient(app) as client:
+        missing = client.post("/api/sanciones", json={"importe_multa_eur": 100})
+        assert missing.status_code == 422
+
+        created = client.post("/api/sanciones", json={
+            "nombre": "Construcciones Levante S.A.",
+            "tipo_persona": "juridica",
+            "identificador": "A12345678",
+            "tipo_identificador": "CIF",
+            "telefono": "+34 912 345 678",
+            "email": "info@levante.test",
+            "dominio_material": "Seguridad Social",
+            "importe_multa_eur": 4500,
+            "crear_cliente": False,
+        })
+        assert created.status_code == 201
+        body = created.json()
+        assert body["nombre"] == "Construcciones Levante S.A."
+        assert body["identificador"] == "A12345678"
+        assert body["telefono"] == "+34 912 345 678"
+        assert body["contacto_estado"] == "manual"
+        assert body["boe_id"].startswith("MANUAL-")
+        assert body["estado_oportunidad"] == "nueva"
+        assert body["cliente_id"] is None
+
+        with_client = client.post("/api/sanciones", json={
+            "nombre": "Taller Norte SL",
+            "identificador": "B87654321",
+            "tipo_identificador": "CIF",
+            "tipo_persona": "juridica",
+            "crear_cliente": True,
+        })
+        assert with_client.status_code == 201
+        converted = with_client.json()
+        assert converted["estado_oportunidad"] == "cliente"
+        assert converted["cliente_id"] is not None
+
+    session = SyncSessionLocal()
+    try:
+        cliente = session.get(Cliente, converted["cliente_id"])
+        assert cliente is not None
+        assert cliente.nombre_razon_social == "Taller Norte SL"
+        assert cliente.cif_nif == "B87654321"
+    finally:
+        session.close()

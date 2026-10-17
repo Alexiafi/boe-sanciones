@@ -8,7 +8,7 @@ from datetime import date
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
@@ -26,7 +26,60 @@ def _ensure_list(value: Any) -> list:
     return [value]
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+def absoluta_url_boe(url: str | None) -> str | None:
+    """Turn a BOE relative path into an absolute URL.
+
+    The open-data API and the TEU HTML index often store paths such as
+    ``/boe_n/dias/2026/09/02/not.php?id=…``. Using those as ``<a href>``
+    makes the browser resolve them against this app (localhost) and 404.
+    """
+    if not url:
+        return None
+    value = url.strip()
+    if not value:
+        return None
+    if value.startswith(("http://", "https://")):
+        return value
+    base = settings.boe_base_url.rstrip("/")
+    path = value if value.startswith("/") else f"/{value}"
+    return f"{base}{path}"
+
+
+def url_documento_boe(*, boe_id: str, fecha_publicacion: date, url_html: str | None, url_pdf: str | None) -> str:
+    """Best public URL for a document: its HTML, else its PDF, else the
+    canonical BOE/TEU viewer built from the identifier."""
+    if url_html:
+        return absoluta_url_boe(url_html) or ""
+    if url_pdf:
+        return absoluta_url_boe(url_pdf) or ""
+    base = settings.boe_base_url.rstrip("/")
+    if boe_id.startswith("BOE-N-"):
+        return (
+            f"{base}/boe_n/dias/{fecha_publicacion.year}/{fecha_publicacion.month:02d}/"
+            f"{fecha_publicacion.day:02d}/not.php?id={boe_id}"
+        )
+    return f"{base}/diario_boe/txt.php?id={boe_id}"
+
+
+class BoeSumarioNoDisponible(Exception):
+    """The BOE has no summary for that date (HTTP 404): either it is not
+    published yet (the daily edition appears around 07:30–08:30 Madrid) or
+    there is no edition that day (Sundays, some holidays). Not retried —
+    hammering the API does not make the edition appear sooner; the beat
+    schedule simply tries again later."""
+
+    def __init__(self, fecha: date) -> None:
+        self.fecha = fecha
+        super().__init__(
+            f"El BOE no tiene sumario publicado para {fecha.isoformat()} (404): "
+            "todavía no está disponible o no hay edición ese día."
+        )
+
+
+@retry(
+    stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30),
+    retry=retry_if_not_exception_type(BoeSumarioNoDisponible), reraise=True,
+)
 def fetch_sumario(fecha: date) -> dict[str, Any]:
     yyyymmdd = fecha.strftime("%Y%m%d")
     url = SUMARIO_URL.format(yyyymmdd=yyyymmdd)
@@ -34,6 +87,8 @@ def fetch_sumario(fecha: date) -> dict[str, Any]:
 
     with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
         resp = client.get(url, headers={"Accept": "application/json"})
+        if resp.status_code == 404:
+            raise BoeSumarioNoDisponible(fecha)
         resp.raise_for_status()
         return resp.json()
 

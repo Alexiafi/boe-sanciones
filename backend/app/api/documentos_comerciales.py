@@ -24,7 +24,7 @@ from app.schemas.documentos_comerciales import (
     PlantillaDocumentoOut,
     PlantillaDocumentoUpdate,
 )
-from app.services.documentos_comerciales import PROVISIONAL_MARKER
+from app.services.documentos_comerciales import PROVISIONAL_MARKER, nombre_fichero_seguro
 from app.services.mailer import Adjunto, EmailSendingDisabled, email_sending_available, enviar_email
 
 router = APIRouter(prefix="/api/documentos-comerciales", tags=["documentos-comerciales"])
@@ -92,7 +92,7 @@ async def download_pdf(documento_id: int, db: AsyncSession = Depends(get_db)):
     documento = await _get_or_404(db, documento_id)
     if not documento.pdf_path or not os.path.exists(documento.pdf_path):
         raise HTTPException(status_code=404, detail="El PDF de este documento no está disponible.")
-    filename = f"{documento.tipo}_{documento.numero or documento.id}.pdf"
+    filename = f"{documento.tipo}_{nombre_fichero_seguro(documento.numero or documento.id)}.pdf"
     return FileResponse(documento.pdf_path, media_type="application/pdf", filename=filename)
 
 

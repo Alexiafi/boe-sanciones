@@ -28,6 +28,9 @@ export function DocumentosBlock({ cliente }: { cliente: Cliente }) {
   const [faltantesContrato, setFaltantesContrato] = useState<{ campo: string; mensaje: string }[]>([]);
   const [faltantesFactura, setFaltantesFactura] = useState<{ campo: string; mensaje: string }[]>([]);
   const [precio, setPrecio] = useState("");
+  const [servicio, setServicio] = useState("");
+  const [formaPago, setFormaPago] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
   const [cuantia, setCuantia] = useState("");
   const [concepto, setConcepto] = useState("");
   const [generando, setGenerando] = useState<"contrato" | "factura" | null>(null);
@@ -60,12 +63,15 @@ export function DocumentosBlock({ cliente }: { cliente: Cliente }) {
   const generarContrato = async (event: React.FormEvent) => {
     event.preventDefault();
     const value = Number(precio);
-    if (!value || value <= 0) return;
+    if (!value || value <= 0 || !servicio.trim() || !formaPago.trim()) return;
     setGenerando("contrato");
     setNotice(null);
     try {
-      await api.clientes.crearContrato(clienteId, value);
+      await api.clientes.crearContrato(clienteId, value, servicio, formaPago, fechaInicio || undefined);
       setPrecio("");
+      setServicio("");
+      setFormaPago("");
+      setFechaInicio("");
       setNotice("Contrato generado. Recuerda que la plantilla puede seguir marcada como provisional.");
       await load();
     } catch (error) {
@@ -118,13 +124,26 @@ export function DocumentosBlock({ cliente }: { cliente: Cliente }) {
       <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.05em] text-on-surface-variant">Contrato</p>
-          <form onSubmit={generarContrato} className="flex items-end gap-2">
-            <Field label="Precio (€)">
-              <Input type="number" min="0" step="0.01" value={precio} onChange={(event) => setPrecio(event.target.value)} />
+          <form onSubmit={generarContrato} className="space-y-2">
+            <Field label="Servicio contratado">
+              <Input value={servicio} onChange={(event) => setServicio(event.target.value)} placeholder="Alerta Tráfico – Empresas" />
             </Field>
-            <Button type="submit" size="sm" disabled={generando === "contrato" || faltantesContrato.length > 0}>
-              {generando === "contrato" ? "Generando…" : "Generar"}
-            </Button>
+            <div className="flex items-end gap-2">
+              <Field label="Precio (€)">
+                <Input type="number" min="0" step="0.01" value={precio} onChange={(event) => setPrecio(event.target.value)} />
+              </Field>
+              <Field label="Forma de pago">
+                <Input value={formaPago} onChange={(event) => setFormaPago(event.target.value)} placeholder="Transferencia bancaria" />
+              </Field>
+            </div>
+            <div className="flex items-end gap-2">
+              <Field label="Fecha de inicio (opcional, hoy por defecto)">
+                <Input type="date" value={fechaInicio} onChange={(event) => setFechaInicio(event.target.value)} />
+              </Field>
+              <Button type="submit" size="sm" disabled={generando === "contrato" || faltantesContrato.length > 0}>
+                {generando === "contrato" ? "Generando…" : "Generar"}
+              </Button>
+            </div>
           </form>
           <ChecklistNotice faltantes={faltantesContrato} />
         </div>

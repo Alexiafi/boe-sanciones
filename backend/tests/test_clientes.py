@@ -134,7 +134,9 @@ def test_client_code_allocation_is_concurrent_safe(clean_database):
 def test_deuda_pendiente_sums_all_linked_sanciones(clean_database):
     session = SyncSessionLocal()
     primero = _opportunity(session, suffix="10", amount=100)
-    segundo = _opportunity(session, suffix="11", amount=250, nombre="Acme Logistica SL", identificador="B12345678")
+    # A different DNI/CIF: another party. (An opportunity with the SAME number
+    # would be attached by the conversion itself — see the identity tests.)
+    segundo = _opportunity(session, suffix="11", amount=250, nombre="Otra Logistica SL", identificador="B87654321")
     session.commit()
     primero_id, segundo_id = primero.id, segundo.id
     session.close()
@@ -212,3 +214,11 @@ def test_clientes_directory_filters_and_notas_actividad_acciones(clean_database)
         assert detail.status_code == 200
         assert len(detail.json()["notas"]) == 1
         assert len(detail.json()["acciones"]) == 1
+
+        fiscal = client.patch(
+            f"/api/clientes/{cliente_activo['id']}",
+            json={"cif_nif": "b-1234567-4", "dni_nie": "12345678z"},
+        )
+        assert fiscal.status_code == 200
+        assert fiscal.json()["cif_nif"] == "B12345674"
+        assert fiscal.json()["dni_nie"] == "12345678Z"

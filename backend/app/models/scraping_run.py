@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import Date, DateTime, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -31,6 +32,15 @@ class ScrapingRun(Base):
     extraction_provider: Mapped[Optional[str]] = mapped_column(String(50))
     extraction_limit: Mapped[Optional[int]] = mapped_column(Integer)
     extraction_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Liveness + progress, refreshed on every document: a run is only "hung"
+    # when its heartbeat goes quiet, however long the day's work takes.
+    heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    fase: Mapped[Optional[str]] = mapped_column(String(30))
+    progreso_actual: Mapped[Optional[int]] = mapped_column(Integer)
+    progreso_total: Mapped[Optional[int]] = mapped_column(Integer)
+    ids_revisados: Mapped[Optional[list]] = mapped_column(JSONB)
+    # {identifier: failed downloads so far}; see MAX_FALLOS_DESCARGA in tasks/scraping.py
+    ids_fallidos: Mapped[Optional[dict]] = mapped_column(JSONB)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

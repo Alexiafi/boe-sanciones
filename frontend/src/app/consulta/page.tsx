@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { ConsultaItem, CoberturaTeu } from "@/lib/types";
 import { Button, Card, CardTitle, Chip, EmptyState, Field, Input, Notice, PageHeader, Spinner } from "@/components/ui";
-import { formatDate } from "@/lib/formatters";
+import { formatCurrency, formatDate } from "@/lib/formatters";
 
 const AVISO_TEU =
   "Uso interno. El índice propio combina lo acumulado del BOE y del TEU (dentro de su ventana pública de 90 días); " +
@@ -48,7 +49,10 @@ export default function ConsultaPage() {
 
   return (
     <div>
-      <PageHeader title="Consulta por DNI/CIF" description="Búsqueda interna en el índice histórico por identificador, matrícula o nombre." />
+      <PageHeader
+        title="Consulta por DNI/CIF"
+        description="Búsqueda interna por identificador, matrícula o nombre: sanciones ya extraídas del panel y documentos del índice histórico."
+      />
 
       <Notice tone="warning" className="mb-6">
         {AVISO_TEU}
@@ -109,18 +113,52 @@ export default function ConsultaPage() {
             ) : (
               <div className="space-y-2">
                 {resultados.map((item) => (
-                  <div key={item.historico_doc_id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low p-3 text-sm">
-                    <div>
-                      <p className="font-medium text-on-surface">{item.titulo}</p>
-                      <p className="text-xs text-on-surface-variant">
-                        {formatDate(item.fecha_publicacion)} · vía {item.via_match} · score {item.score.toFixed(2)}
-                      </p>
+                  <div
+                    key={item.tipo === "sancion" ? `s-${item.sancionado_id}` : `d-${item.historico_doc_id}`}
+                    className="flex flex-col gap-3 rounded-lg bg-surface-container-low p-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      {item.tipo === "sancion" ? (
+                        <>
+                          <p className="font-medium text-on-surface">
+                            {item.nombre || "Sin nombre"}
+                            {item.identificador && <span className="font-normal text-on-surface-variant"> · {item.identificador}</span>}
+                          </p>
+                          <p className="truncate text-xs text-on-surface-variant" title={item.titulo}>{item.titulo}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            {formatDate(item.fecha_publicacion)}
+                            {item.organismo_emisor && ` · ${item.organismo_emisor}`}
+                            {item.expediente && ` · Exp. ${item.expediente}`}
+                            {item.importe_multa_eur != null && ` · ${formatCurrency(item.importe_multa_eur)}`}
+                            {` · vía ${item.via_match}`}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium text-on-surface">{item.titulo}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            {formatDate(item.fecha_publicacion)} · vía {item.via_match} · score {item.score.toFixed(2)}
+                          </p>
+                        </>
+                      )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      {item.tipo === "sancion" && <Chip label={item.codigo || "Sanción"} tone="success" />}
+                      {item.tipo === "sancion" && item.cliente_id && <Chip label="Cliente" tone="info" />}
                       <Chip label={item.fuente.toUpperCase()} tone={item.fuente === "teu" ? "primary" : "neutral"} />
                       {item.fuera_de_ventana_teu && <span className="text-[10px] uppercase text-on-surface-variant">Solo acumulado</span>}
-                      {(item.url_pdf || item.url_html) && (
-                        <a href={item.url_pdf || item.url_html || "#"} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+                      {item.tipo === "sancion" && item.sancionado_id && (
+                        <Link href={`/sanciones/${item.sancionado_id}`} className="text-xs font-medium text-primary hover:underline">
+                          Ver sanción
+                        </Link>
+                      )}
+                      {item.tipo === "sancion" && item.cliente_id && (
+                        <Link href={`/clientes/${item.cliente_id}`} className="text-xs font-medium text-primary hover:underline">
+                          Ver cliente
+                        </Link>
+                      )}
+                      {(item.url_documento || item.url_pdf || item.url_html) && (
+                        <a href={item.url_documento || item.url_pdf || item.url_html || "#"} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
                           Ver documento
                         </a>
                       )}
