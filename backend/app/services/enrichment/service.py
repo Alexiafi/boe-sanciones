@@ -656,6 +656,8 @@ class _Votos:
         # Domains proven to be the party's own website: a page there carries its
         # CIF or its full razón social WITH the same legal form.
         self.sitios_confirmados: set[str] = set()
+        # Domains that show this name with another legal form: a homonym, never the party's.
+        self.sitios_descartados: set[str] = set()
 
     def anadir(self, campo: str, valor: str, url: str, confidence: float, peso: float, *, propio: bool = False) -> None:
         clave = patterns.national_digits(valor) if campo == "telefono" else valor.strip().lower().rstrip("/")
@@ -679,7 +681,10 @@ class _Votos:
         entrada["peso"] += peso
 
     def _peso(self, entrada: dict) -> float:
-        bonus = PESO_SITIO_PROPIO if entrada["dominios_propios"] & self.sitios_confirmados else 0.0
+        if entrada["dominios_propios"] and entrada["dominios_propios"] <= self.sitios_descartados:
+            return 0.0
+        confirmados = self.sitios_confirmados - self.sitios_descartados
+        bonus = PESO_SITIO_PROPIO if entrada["dominios_propios"] & confirmados else 0.0
         return entrada["peso"] + bonus
 
     def mejores(self, campo: str, minimo: float) -> list[dict]:
@@ -708,7 +713,7 @@ class _Votos:
             # party's; a profile that is itself a search result needs its name.
             filas = [
                 e for e in self.mejores(campo, SOPORTE_MINIMO_PERFIL)
-                if not e["dominios_propios"] or e["dominios_propios"] & self.sitios_confirmados
+                if not e["dominios_propios"] or e["dominios_propios"] & (self.sitios_confirmados - self.sitios_descartados)
             ]
             if filas:
                 resultado[campo] = fila(filas[0])
@@ -771,21 +776,30 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
         "robots": 0, "errores": 0, "leidas": 0, "candidatos": 0,
     }
 
+    empresa = _es_empresa(sancionado)
+
     def nombre_actual() -> str | None:
         return _nombre_util(sancionado)
 
-    def absorb(raw: str, url: str, *, es_snippet: bool) -> None:
+    def absorb(raw: str, url: str, *, es_snippet: bool, titulo: str | None = None) -> None:
         domain = _dominio(url)
         directorio = patterns.parece_directorio(url, identificador)
         visible = patterns.texto_visible(raw, sin_marco=directorio and not es_snippet)
         nombre = nombre_actual()
+        if not directorio and patterns.dominio_parecido(domain, nombre) and patterns.forma_distinta_en(visible, nombre):
+            # The same name with another legal form: a homonym (checked before the
+            # evidence threshold — such a page has no evidence for THIS company).
+            votos.sitios_descartados.add(domain)
         confidence, evidencia = _evidencia(visible, clave, nombre)
         if confidence < settings.enrichment_min_confidence:
             return
         if confidence > estado["best_confidence"]:
             estado.update(best_confidence=confidence, best_url=url, best_evidencia=evidencia)
-        # The candidate URL itself may be the party's social profile.
+        # The candidate URL itself may be the party's social profile (a company's
+        # LinkedIn is a /company/ page; /in/ is a person's).
         for field, urls in patterns.find_social(url).items():
+            if field == "linkedin_url" and empresa and "/in/" in urls[0]:
+                continue
             if patterns.perfil_parecido(urls[0], nombre, None):
                 votos.anadir(field, urls[0], url, confidence, confidence)
         if patterns.is_non_entity_site(domain):
@@ -793,14 +807,17 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
         if not directorio and patterns.parece_pagina_oficial(visible, identificador):
             return
         propio = not directorio and patterns.dominio_parecido(domain, nombre)
-        if propio and (confidence >= 0.9 or patterns.menciona_nombre_con_forma(visible, nombre)):
+        if propio and domain not in votos.sitios_descartados and (
+            confidence >= 0.9 or patterns.menciona_nombre_con_forma(visible, nombre)
+            or patterns.dominio_es_el_nombre(domain, nombre)
+        ):
             votos.sitios_confirmados.add(domain)
         telefonos, emails = patterns.contacto_cercano(visible, identificador, nombre)
         if propio and not es_snippet:
             # On the party's own site the header/footer contact is theirs.
             telefonos = telefonos or patterns.find_phones(raw)
             emails = emails or patterns.find_emails(raw)
-        telefonos = [t for t in telefonos if not es_telefono_institucional(t)]
+        telefonos = [patterns.telefono_presentable(t) for t in telefonos if not patterns.es_telefono_de_organismo(t)]
         emails = [
             e for e in emails
             if not es_email_institucional(e) and not (directorio and patterns.email_del_sitio(e, domain))
@@ -809,6 +826,14 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
         # The own-site bonus is granted at the end, only if some page of that
         # domain proved it belongs to the party (see _Votos.sitios_confirmados).
         peso = confidence
+        if (
+            directorio and confidence < 0.9 and titulo
+            and patterns.is_generic_directory(domain) and patterns.menciona_nombre_con_forma(titulo, nombre)
+        ):
+            # A company-data directory's record whose TITLE is exactly this razón
+            # social with its legal form: the record of this company (razones
+            # sociales are unique in Spain). Live: Páginas Amarillas, Empresite.
+            peso = 0.9
         for posicion, telefono in enumerate(telefonos[:2]):
             votos.anadir("telefono", telefono, url, confidence, peso if posicion == 0 else peso / 2, propio=propio)
         if emails:
@@ -816,18 +841,28 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
         if propio and not es_snippet:
             for field, urls in patterns.find_social(raw).items():
                 # Theme/agency footers link THEIR profiles ("artbees"): only the party's own.
-                propios = [u for u in urls if patterns.perfil_parecido(u, nombre, domain)]
+                propios = [
+                    u for u in urls
+                    if patterns.perfil_parecido(u, nombre, domain) and not (empresa and "/in/" in u)
+                ]
                 if propios:
                     votos.anadir(field, propios[0], url, confidence, peso, propio=True)
             votos.anadir("web", f"{urlparse(url).scheme}://{urlparse(url).netloc}", url, confidence, peso, propio=True)
 
-    def descubrir_razon(*textos: str | None, titulo: str | None = None) -> None:
+    def descubrir_razon(*textos: str | None, titulo: str | None = None, url: str | None = None) -> None:
+        if url and not patterns.parece_directorio(url, identificador):
+            # Outside a directory only a result TITLE is read ('X SL - Inicio'):
+            # the text of a privacy policy is a sentence, not a name.
+            textos = (titulo,)
         if not clave or not any(
             texto and any(c == clave for _, _, c in patterns.identificadores_en_texto(texto)) for texto in textos
         ):
             return
-        razon = patterns.limpiar_razon(patterns.razon_de_titulo(titulo) or patterns.extract_razon_social(*textos))
-        if razon and not clave_identidad(razon):
+        razon = patterns.razon_de_titulo(titulo)
+        if not razon and not (url and not patterns.parece_directorio(url, identificador)):
+            razon = patterns.extract_razon_social(*textos)
+        razon = patterns.limpiar_razon(razon)
+        if razon and not clave_identidad(razon) and patterns.razon_valida(razon):
             razones.append(razon)
             if _nombre_vacio(sancionado):
                 sancionado.nombre = razon
@@ -837,9 +872,9 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
         for candidate in batch:
             url = _normalise_candidate_url(candidate.url)
             texto_serp = " | ".join(part for part in (candidate.title, candidate.snippet) if part)
-            descubrir_razon(candidate.title, candidate.snippet, titulo=candidate.title)
+            descubrir_razon(candidate.title, candidate.snippet, titulo=candidate.title, url=url)
             if texto_serp:
-                absorb(texto_serp, url, es_snippet=True)
+                absorb(texto_serp, url, es_snippet=True, titulo=candidate.title)
         # Pages worth opening: the party's own website first (its own budget:
         # directories read for the first search must not use it up), then the
         # records that name the party by CIF or full name. Pages about other
@@ -881,7 +916,7 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
                 estado["leidas"] += 1
             if patterns.parece_directorio(url, identificador):
                 descubrir_razon(patterns.texto_visible(html)[:6_000], titulo=_titulo_html(html))
-                absorb(html, url, es_snippet=False)
+                absorb(html, url, es_snippet=False, titulo=_titulo_html(html))
                 continue
             for page_url, page_html in _crawl_contact_pages(client, url, html):
                 paginas_leidas.add(page_url)
@@ -940,13 +975,12 @@ def _run_cascade(db, sancionado: Sancionado, provider, query: str, started: floa
             evidencia="robots.txt del sitio candidato bloquea la descarga",
             duracion_ms=duracion_ms, coste_estimado_eur=coste_total,
         )
-    if estado["leidas"] == 0 and estado["errores"] and estado["errores"] == len(paginas_leidas) and not votos.datos:
-        return EnrichmentResult(
-            estado="error", proveedor=provider.name, consulta=consulta,
-            error="No se pudo descargar ningún candidato", duracion_ms=duracion_ms,
-            coste_estimado_eur=coste_total,
-        )
+    # Pages that refuse the download (403 from einforma, axesor…) are the normal
+    # case, not an error: the search ran and its results were read.
+    evidencia = None
+    if estado["errores"] and estado["leidas"] == 0:
+        evidencia = "Los directorios con su ficha no dejan descargarla y los resultados no traen su teléfono"
     return EnrichmentResult(
-        estado="no_encontrado", proveedor=provider.name, consulta=consulta,
+        estado="no_encontrado", proveedor=provider.name, consulta=consulta, evidencia=evidencia,
         duracion_ms=duracion_ms, coste_estimado_eur=coste_total,
     )

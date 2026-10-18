@@ -167,10 +167,14 @@ def _looks_like_published_phone(raw: str, text: str, start: int) -> bool:
     return bool(PHONE_CONTEXT_RE.search(chunk))
 
 
+# Internal/placeholder hosts left in a website template (live: info@euroelevaciones.local).
+EMAIL_JUNK_HOST_TLDS = frozenset({"local", "lan", "internal", "localdomain", "invalid", "example", "localhost"})
+
+
 def _is_junk_email(value: str) -> bool:
     domain = value.lower().rpartition("@")[2]
     tld = domain.rpartition(".")[2]
-    return tld in EMAIL_JUNK_TLDS or domain in EMAIL_JUNK_DOMAINS
+    return tld in EMAIL_JUNK_TLDS or tld in EMAIL_JUNK_HOST_TLDS or domain in EMAIL_JUNK_DOMAINS
 
 
 def find_phones(text: str) -> list[str]:
@@ -614,4 +618,70 @@ def perfil_parecido(url: str, nombre: str | None, dominio: str | None) -> bool:
         etiqueta = etiqueta[4:] if etiqueta.startswith("www.") else etiqueta
         etiqueta = clave_compacta(etiqueta.rsplit(".", 1)[0])
         return len(etiqueta) >= 4 and (etiqueta in handle or handle in etiqueta)
+    return False
+
+
+_RAZON_BASURA = frozenset({
+    "IDENTIFICACION", "RESPONSABLE", "TITULAR", "DATOS", "POLITICA", "PRIVACIDAD", "AVISO", "LEGAL",
+    "CONTACTO", "INFORME", "TELEFONO", "DIRECCION", "CONSULTE", "INFORMACION",
+})
+
+
+def razon_valida(razon: str | None) -> bool:
+    """A plausible razón social: not a sentence of a privacy policy
+    ('IDENTIFICACIÓN Y DATOS DE CONTACTO DEL RESPONSABLE. Identidad LA BANDA DE AC SL')."""
+    if not razon:
+        return False
+    palabras = [p for p in re.split(r"[^A-Z0-9]+", _plegar(razon)) if p]
+    return 1 <= len(palabras) <= 9 and not (_RAZON_BASURA & set(palabras))
+
+
+# Telephone numbers written oddly ("645 0 138.72"): stored as plain 9 digits.
+_TELEFONO_LIMPIO_RE = re.compile(r"^(?:\+34\s?)?(?:\d{9}|\d{3}(?:[ .]\d{3}){2}|\d{3}(?:[ .]\d{2}){3}|\d{2}(?:[ .]\d{3}){2}[ .]?\d{0,1}|\d{2}[ .]\d{3}(?:[ .]\d{2}){2})$")
+
+
+def telefono_presentable(raw: str) -> str:
+    raw = raw.strip()
+    if _TELEFONO_LIMPIO_RE.match(raw):
+        return raw
+    return national_digits(raw) or raw
+
+
+def es_telefono_de_organismo(valor: str | None) -> bool:
+    """Short public-service numbers and 800/900/905 lines. 901/902 shared-cost
+    lines are NOT excluded here: companies publish them (live: ABRASERVICE
+    IBERICA INT SL, 902 19 67 31 in five directories); an office's 901/902 on
+    its own notice never reaches the vote (official pages and lists are skipped)."""
+    if not valor:
+        return False
+    digitos = re.sub(r"\D", "", valor)
+    if digitos.startswith("0034"):
+        digitos = digitos[4:]
+    elif digitos.startswith("34") and len(digitos) >= 11:
+        digitos = digitos[2:]
+    cortos = {"010", "012", "016", "060", "061", "062", "080", "085", "088", "091", "092", "112"}
+    return digitos in cortos or (len(digitos) == 9 and digitos[:3] in ("800", "900", "905"))
+
+
+def dominio_es_el_nombre(dominio: str, nombre: str | None) -> bool:
+    """The domain spells the whole razón social ('gabinetetrama.es' for GABINETE TRAMA SL)."""
+    etiqueta = dominio.lower()
+    etiqueta = etiqueta[4:] if etiqueta.startswith("www.") else etiqueta
+    etiqueta = clave_compacta(etiqueta.rsplit(".", 1)[0])
+    tokens = tokens_nombre(nombre)
+    return bool(tokens) and len("".join(tokens)) >= 6 and "".join(tokens) in etiqueta
+
+
+def forma_distinta_en(texto: str, nombre: str | None) -> bool:
+    """The page shows this name with ANOTHER legal form (a homonym abroad: 'Ágora Patrimonial S.A.S.')."""
+    tokens = tokens_nombre(nombre)
+    forma_buscada = forma_de_nombre(nombre)
+    if not tokens or not forma_buscada:
+        return False
+    plegado = _plegar(texto)
+    patron = r"(?<![A-Z0-9])" + r"[\W_]{0,3}".join(re.escape(t) for t in tokens) + r"(?![A-Z0-9])"
+    for m in re.finditer(patron, plegado):
+        forma_m = _FORMA_TRAS_RE.match(plegado[m.end():m.end() + 40])
+        if forma_m and _forma_normal(forma_m.group(1)) != forma_buscada:
+            return True
     return False
